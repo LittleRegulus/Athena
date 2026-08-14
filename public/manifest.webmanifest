@@ -1,0 +1,20 @@
+{
+  "name": "Athena Private AI",
+  "short_name": "Athena",
+  "description": "A private-by-design AI research and creation interface.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07090d",
+  "theme_color": "#090b10",
+  "icons": [
+    {
+      "src": "AthenaIcon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
