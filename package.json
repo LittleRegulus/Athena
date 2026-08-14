@@ -13,7 +13,7 @@
     "firebase:secret": "firebase functions:secrets:set VENICE_API_KEY",
     "firebase:deploy": "firebase deploy --only functions",
     "start": "node server/index.js",
-    "check": "node --check server/index.js && node --test server/storage.test.js server/projectFiles.test.js server/imageGeneration.test.js && vite build"
+    "check": "node --check server/index.js && node --check functions/index.js && node --test server/storage.test.js server/projectFiles.test.js server/imageGeneration.test.js src/secureStorage.test.js && vite build"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.1",
     "concurrently": "^9.2.1",
+    "fake-indexeddb": "^6.2.5",
     "firebase-tools": "^15.27.0",
     "vite": "^7.2.2"
   }
