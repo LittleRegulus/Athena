@@ -451,6 +451,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .settings-section-title strong { color: #d4d8df; font-size: 12px; font-weight: 600; }
 .settings-section-title small { color: #68707b; font-size: 9px; }
 .settings-section-title--row { justify-content: space-between; }
+.profile-account-card { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; overflow: hidden; margin-top: 16px; padding: 12px 13px; border: 1px solid rgba(214,179,100,.22); border-radius: 10px; background: linear-gradient(115deg, rgba(214,179,100,.085), rgba(255,255,255,.012)); }
+.profile-account-card::after { position: absolute; top: -42px; right: -24px; width: 105px; height: 105px; border-radius: 50%; background: rgba(214,179,100,.07); content: ''; filter: blur(4px); pointer-events: none; }
+.profile-account-card--admin { border-color: rgba(117,158,214,.25); background: linear-gradient(115deg, rgba(90,136,198,.1), rgba(255,255,255,.012)); }
+.profile-account-card--admin::after { background: rgba(90,136,198,.09); }
+.profile-account-name { position: relative; z-index: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.profile-account-name > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.profile-account-name small { color: #6f7782; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.profile-account-name strong { overflow: hidden; color: #dce0e5; font: 600 11px/1.25 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; text-overflow: ellipsis; }
+.profile-account-icon { width: 31px; height: 31px; flex: 0 0 31px; display: grid; place-items: center; border: 1px solid rgba(214,179,100,.28); border-radius: 50%; color: var(--gold-bright); background: rgba(214,179,100,.08); }
+.profile-account-card--admin .profile-account-icon { border-color: rgba(117,158,214,.3); color: #9dbce6; background: rgba(90,136,198,.1); }
+.profile-role-badge { position: relative; z-index: 1; flex: 0 0 auto; padding: 6px 9px; border: 1px solid rgba(214,179,100,.32); border-radius: 999px; color: #e3c985; background: rgba(214,179,100,.08); font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.profile-account-card--admin .profile-role-badge { border-color: rgba(117,158,214,.32); color: #a9c7ef; background: rgba(90,136,198,.1); }
 .profile-picture-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.014); }
 .profile-picture-button { position: relative; width: 52px; height: 52px; flex: 0 0 52px; display: grid; place-items: center; overflow: visible; padding: 0; border: 1px solid rgba(214,179,100,.3); border-radius: 50%; color: #a7adb6; background: #151920; cursor: pointer; }
 .profile-picture-button:hover { border-color: rgba(214,179,100,.62); color: var(--gold-bright); }
@@ -559,6 +571,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .login-panel { margin-top: max(18px, env(safe-area-inset-top, 0px)); padding: 27px 21px; }
   .login-logo { width: 78px; height: 78px; }
   .login-panel h1 { font-size: 31px; }
+  .profile-account-card { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .profile-role-badge { margin-left: 41px; }
   .topbar-actions .icon-button { display: none; }
   .trash-row { align-items: flex-start; flex-direction: column; }
   .trash-row-actions { width: 100%; flex-wrap: nowrap; }

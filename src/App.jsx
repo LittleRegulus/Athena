@@ -525,7 +525,7 @@ async function validateReferenceImageFile(file) {
   }
 }
 
-function App({ currentUsername, onLogout, onChangePassword }) {
+function App({ currentUsername, currentRole, currentRoleTone, onLogout, onChangePassword }) {
   const [conversations, setConversations] = useState(loadConversations)
   const [deletedConversations, setDeletedConversations] = useState(loadDeletedConversations)
   const [activeId, setActiveId] = useState(() => loadConversations()[0]?.id ?? null)
@@ -2300,6 +2300,13 @@ function App({ currentUsername, onLogout, onChangePassword }) {
                   <div className="settings-section-title">
                     <UserRound size={17} />
                     <div><strong>Your profile</strong><small>Stored in your local Athena database</small></div>
+                  </div>
+                  <div className={`profile-account-card profile-account-card--${currentRoleTone}`}>
+                    <div className="profile-account-name">
+                      <span className="profile-account-icon"><ShieldCheck size={16} /></span>
+                      <span><small>Signed in as</small><strong>@{currentUsername}</strong></span>
+                    </div>
+                    <span className="profile-role-badge">{currentRole}</span>
                   </div>
                   <div className="profile-picture-row">
                     <button className="profile-picture-button" onClick={openAvatarPicker} aria-label="Change your profile picture">

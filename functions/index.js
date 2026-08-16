@@ -14,7 +14,10 @@ import {
 initializeApp()
 
 const veniceApiKey = defineSecret('VENICE_API_KEY')
-const allowedLoginEmail = 'swipingcc@athena.invalid'
+const allowedLoginEmails = new Set([
+  'swipingcc@athena.invalid',
+  'glizzyuli@athena.invalid',
+])
 const maxOutputTokens = 8192
 const maxAttachmentBytes = 8 * 1024 * 1024
 const maxAttachmentContextBytes = 20 * 1024 * 1024
@@ -70,7 +73,7 @@ app.use(async (request, response, next) => {
   if (!match) return response.status(401).json({ error: 'Sign in to Athena before using the model provider.' })
   try {
     const decoded = await getAuth().verifyIdToken(match[1])
-    if (String(decoded.email || '').toLowerCase() !== allowedLoginEmail) {
+    if (!allowedLoginEmails.has(String(decoded.email || '').toLowerCase())) {
       return response.status(403).json({ error: 'This Firebase account is not allowed to use Athena.' })
     }
     request.athenaUser = decoded

@@ -17,8 +17,18 @@ const firebaseConfig = {
   appId: '1:587573361379:web:f3a83e586f67fdc39ee3d6',
 }
 
-export const ATHENA_USERNAME = 'swipingcc'
-const ATHENA_LOGIN_EMAIL = import.meta.env.VITE_ATHENA_LOGIN_EMAIL || 'swipingcc@athena.invalid'
+const ATHENA_ACCOUNTS = Object.freeze({
+  swipingcc: Object.freeze({
+    email: import.meta.env.VITE_ATHENA_LOGIN_EMAIL || 'swipingcc@athena.invalid',
+    role: 'Owner / Developer',
+    roleTone: 'owner',
+  }),
+  glizzyuli: Object.freeze({
+    email: 'glizzyuli@athena.invalid',
+    role: 'Admin / Co-Developer',
+    roleTone: 'admin',
+  }),
+})
 
 const firebaseApp = initializeApp(firebaseConfig)
 export const auth = getAuth(firebaseApp)
@@ -38,10 +48,20 @@ function friendlyAuthError(error) {
 }
 
 export async function loginToAthena(username, password) {
-  if (username.trim().toLowerCase() !== ATHENA_USERNAME) throw new Error('The username or password is incorrect.')
+  const normalizedUsername = username.trim().toLowerCase()
+  const account = ATHENA_ACCOUNTS[normalizedUsername]
+  if (!account) throw new Error('The username or password is incorrect.')
   try {
     await persistenceReady
-    return await signInWithEmailAndPassword(auth, ATHENA_LOGIN_EMAIL, password)
+    const credential = await signInWithEmailAndPassword(auth, account.email, password)
+    return {
+      credential,
+      account: {
+        username: normalizedUsername,
+        role: account.role,
+        roleTone: account.roleTone,
+      },
+    }
   } catch (error) {
     throw new Error(friendlyAuthError(error))
   }
@@ -63,4 +83,3 @@ export async function changeAthenaPassword(newPassword) {
 export async function getAthenaIdToken() {
   return auth.currentUser ? auth.currentUser.getIdToken() : null
 }
-

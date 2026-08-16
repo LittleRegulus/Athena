@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react'
 import athenaIcon from '../AthenaIcon.png'
 import {
-  ATHENA_USERNAME,
   changeAthenaPassword,
   loginToAthena,
   logoutFromAthena,
@@ -100,11 +99,13 @@ function LoginScreen({ onLogin }) {
 
 export default function AthenaAccess({ children }) {
   const [stage, setStage] = useState('splash')
+  const [currentAccount, setCurrentAccount] = useState(null)
 
   async function handleLogin(username, password) {
-    const credential = await loginToAthena(username, password)
+    const { credential, account } = await loginToAthena(username, password)
     try {
       await unlockSecureStorage(password, credential.user.uid)
+      setCurrentAccount(account)
       setStage('app')
     } catch (error) {
       await logoutFromAthena().catch(() => {})
@@ -115,6 +116,7 @@ export default function AthenaAccess({ children }) {
   async function handleLogout() {
     await lockSecureStorage()
     await logoutFromAthena()
+    setCurrentAccount(null)
     setStage('login')
   }
 
@@ -126,7 +128,9 @@ export default function AthenaAccess({ children }) {
   if (stage === 'splash') return <SplashScreen onComplete={() => setStage('login')} />
   if (stage === 'login') return <LoginScreen onLogin={handleLogin} />
   return children({
-    currentUsername: ATHENA_USERNAME,
+    currentUsername: currentAccount.username,
+    currentRole: currentAccount.role,
+    currentRoleTone: currentAccount.roleTone,
     onLogout: handleLogout,
     onChangePassword: handlePasswordChange,
   })
