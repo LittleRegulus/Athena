@@ -18,6 +18,10 @@ const allowedLoginEmails = new Set([
   'swipingcc@athena.invalid',
   'glizzyuli@athena.invalid',
 ])
+const billingAccessEmails = new Set([
+  'swipingcc@athena.invalid',
+  'glizzyuli@athena.invalid',
+])
 const maxOutputTokens = 8192
 const maxAttachmentBytes = 8 * 1024 * 1024
 const maxAttachmentContextBytes = 20 * 1024 * 1024
@@ -110,7 +114,11 @@ app.get('/models', (_request, response) => {
   response.json({ models: [...MODELS.map((model) => ({ ...model, type: 'chat' })), ...IMAGE_MODELS] })
 })
 
-app.get('/billing', async (_request, response) => {
+app.get('/billing', async (request, response) => {
+  const loginEmail = String(request.athenaUser?.email || '').toLowerCase()
+  if (!billingAccessEmails.has(loginEmail)) {
+    return response.status(403).json({ error: 'Venice balance access is limited to Athena owners and administrators.' })
+  }
   if (!providerKey()) return response.status(503).json({ error: 'Athena is not connected to Venice yet.' })
   try {
     const upstream = await fetch('https://api.venice.ai/api/v1/api_keys/rate_limits', {

@@ -131,6 +131,7 @@ export default function AthenaAccess({ children }) {
     currentUsername: currentAccount.username,
     currentRole: currentAccount.role,
     currentRoleTone: currentAccount.roleTone,
+    canViewVeniceBalance: currentAccount.canViewVeniceBalance,
     onLogout: handleLogout,
     onChangePassword: handlePasswordChange,
   })

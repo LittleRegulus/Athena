@@ -525,7 +525,7 @@ async function validateReferenceImageFile(file) {
   }
 }
 
-function App({ currentUsername, currentRole, currentRoleTone, onLogout, onChangePassword }) {
+function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalance, onLogout, onChangePassword }) {
   const [conversations, setConversations] = useState(loadConversations)
   const [deletedConversations, setDeletedConversations] = useState(loadDeletedConversations)
   const [activeId, setActiveId] = useState(() => loadConversations()[0]?.id ?? null)
@@ -796,6 +796,7 @@ function App({ currentUsername, currentRole, currentRoleTone, onLogout, onChange
   }, [usageEntries])
 
   async function refreshBilling() {
+    if (!canViewVeniceBalance) return
     setBillingLoading(true)
     setBillingError('')
     try {
@@ -813,7 +814,7 @@ function App({ currentUsername, currentRole, currentRoleTone, onLogout, onChange
   function openSettings() {
     setSettingsOpen(true)
     setMobileSidebar(false)
-    refreshBilling()
+    if (canViewVeniceBalance) refreshBilling()
   }
 
   async function saveNewPassword(event) {
@@ -2425,27 +2426,29 @@ function App({ currentUsername, currentRole, currentRoleTone, onLogout, onChange
                     : 'The browser safety copy is encrypted. Daily and pre-Trash snapshots are stored under Athena/data/backups.'}</p>
                 </section>
 
-                <section className="settings-section">
-                  <div className="settings-section-title settings-section-title--row">
-                    <div className="settings-section-title-copy">
-                      <Coins size={17} />
-                      <div><strong>Venice balance</strong><small>Exact balance reported by your API account</small></div>
+                {canViewVeniceBalance && (
+                  <section className="settings-section">
+                    <div className="settings-section-title settings-section-title--row">
+                      <div className="settings-section-title-copy">
+                        <Coins size={17} />
+                        <div><strong>Venice balance</strong><small>Exact balance reported by your API account</small></div>
+                      </div>
+                      <button className="refresh-button" onClick={refreshBilling} disabled={billingLoading}>
+                        <RefreshCw size={14} className={billingLoading ? 'spin' : ''} /> Refresh
+                      </button>
                     </div>
-                    <button className="refresh-button" onClick={refreshBilling} disabled={billingLoading}>
-                      <RefreshCw size={14} className={billingLoading ? 'spin' : ''} /> Refresh
-                    </button>
-                  </div>
-                  {billingError ? (
-                    <p className="settings-error">{billingError}</p>
-                  ) : (
-                    <div className="balance-grid">
-                      <div><small>USD credits</small><strong>{billingLoading && !billing ? '...' : formatMoney(billing?.balances?.usd)}</strong></div>
-                      <div><small>DIEM</small><strong>{billingLoading && !billing ? '...' : Number(billing?.balances?.diem || 0).toFixed(2)}</strong></div>
-                      <div><small>Billing currency</small><strong>{billing?.consumptionCurrency || 'USD'}</strong></div>
-                      <div><small>API status</small><strong className={billing?.canConsume ? 'status-good' : 'status-warn'}>{billing?.canConsume ? 'Ready' : 'Unavailable'}</strong></div>
-                    </div>
-                  )}
-                </section>
+                    {billingError ? (
+                      <p className="settings-error">{billingError}</p>
+                    ) : (
+                      <div className="balance-grid">
+                        <div><small>USD credits</small><strong>{billingLoading && !billing ? '...' : formatMoney(billing?.balances?.usd)}</strong></div>
+                        <div><small>DIEM</small><strong>{billingLoading && !billing ? '...' : Number(billing?.balances?.diem || 0).toFixed(2)}</strong></div>
+                        <div><small>Billing currency</small><strong>{billing?.consumptionCurrency || 'USD'}</strong></div>
+                        <div><small>API status</small><strong className={billing?.canConsume ? 'status-good' : 'status-warn'}>{billing?.canConsume ? 'Ready' : 'Unavailable'}</strong></div>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 <section className="settings-section">
                   <div className="settings-section-title settings-section-title--row">
@@ -2473,7 +2476,9 @@ function App({ currentUsername, currentRole, currentRoleTone, onLogout, onChange
                       )
                     }) : <p className="usage-empty">Your ledger will appear after Athena completes its next response.</p>}
                   </div>
-                  <p className="settings-note">The ledger estimates token charges and detected web searches. The Venice balance above is the authoritative account total and may include activity outside Athena.</p>
+                  <p className="settings-note">{canViewVeniceBalance
+                    ? 'The ledger estimates token charges and detected web searches. The Venice balance above is the authoritative account total and may include activity outside Athena.'
+                    : 'The ledger estimates this device\'s model-token and web-search charges. It does not expose the shared Venice account balance.'}</p>
                 </section>
               </div>
             </section>

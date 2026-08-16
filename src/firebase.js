@@ -22,11 +22,13 @@ const ATHENA_ACCOUNTS = Object.freeze({
     email: import.meta.env.VITE_ATHENA_LOGIN_EMAIL || 'swipingcc@athena.invalid',
     role: 'Owner / Developer',
     roleTone: 'owner',
+    canViewVeniceBalance: true,
   }),
   glizzyuli: Object.freeze({
     email: 'glizzyuli@athena.invalid',
     role: 'Admin / Co-Developer',
     roleTone: 'admin',
+    canViewVeniceBalance: true,
   }),
 })
 
@@ -60,6 +62,7 @@ export async function loginToAthena(username, password) {
         username: normalizedUsername,
         role: account.role,
         roleTone: account.roleTone,
+        canViewVeniceBalance: Boolean(account.canViewVeniceBalance),
       },
     }
   } catch (error) {
