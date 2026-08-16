@@ -3,6 +3,7 @@ const DATABASE_VERSION = 1
 const META_STORE = 'vaults'
 const RECORD_STORE = 'records'
 const PBKDF2_ITERATIONS = 310_000
+const WRITE_COALESCE_MS = 300
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -13,6 +14,8 @@ let masterKey = null
 let masterKeyBytes = null
 let values = new Map()
 let writeChain = Promise.resolve()
+let pendingWrites = new Map()
+let writeTimer = null
 
 function requestResult(request) {
   return new Promise((resolve, reject) => {
@@ -129,9 +132,30 @@ function assertUnlocked() {
   if (!currentUserId || !masterKey) throw new Error('Athena device storage is locked.')
 }
 
-function queueWrite(task) {
-  writeChain = writeChain.catch(() => {}).then(task)
+function commitPendingWrites() {
+  if (!pendingWrites.size) return writeChain
+  const batch = [...pendingWrites.entries()]
+  pendingWrites.clear()
+  writeChain = writeChain.catch(() => {}).then(async () => {
+    for (const [name, mutation] of batch) {
+      if (mutation.type === 'delete') await deleteValue(name)
+      else await persistValue(name, mutation.value)
+    }
+  })
   return writeChain
+}
+
+function schedulePendingWrites() {
+  if (writeTimer !== null) return
+  writeTimer = setTimeout(() => {
+    writeTimer = null
+    commitPendingWrites().catch(() => {})
+  }, WRITE_COALESCE_MS)
+}
+
+function queueWrite(name, mutation) {
+  pendingWrites.set(name, mutation)
+  schedulePendingWrites()
 }
 
 async function persistValue(name, value) {
@@ -189,6 +213,9 @@ export async function unlockSecureStorage(password, userId) {
   masterKey = await importMasterKey(bytes)
   values = new Map()
   writeChain = Promise.resolve()
+  pendingWrites = new Map()
+  if (writeTimer !== null) clearTimeout(writeTimer)
+  writeTimer = null
 
   const recordTransaction = database.transaction(RECORD_STORE, 'readonly')
   const records = await requestResult(recordTransaction.objectStore(RECORD_STORE).index('byUser').getAll(userId))
@@ -206,12 +233,12 @@ export const secureStorage = {
     assertUnlocked()
     const normalized = String(value)
     values.set(name, normalized)
-    queueWrite(() => persistValue(name, normalized))
+    queueWrite(name, { type: 'set', value: normalized })
   },
   removeItem(name) {
     assertUnlocked()
     values.delete(name)
-    queueWrite(() => deleteValue(name))
+    queueWrite(name, { type: 'delete' })
   },
 }
 
@@ -228,6 +255,11 @@ export async function exportSecureStorage() {
 }
 
 export async function flushSecureStorage() {
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer)
+    writeTimer = null
+  }
+  while (pendingWrites.size) await commitPendingWrites()
   await writeChain
 }
 
@@ -237,6 +269,9 @@ export async function lockSecureStorage() {
   masterKey = null
   masterKeyBytes = null
   values = new Map()
+  pendingWrites = new Map()
+  if (writeTimer !== null) clearTimeout(writeTimer)
+  writeTimer = null
   writeChain = Promise.resolve()
 }
 

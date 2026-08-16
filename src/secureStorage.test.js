@@ -30,7 +30,9 @@ test('encrypted vault migrates, persists, rejects a wrong password, and re-wraps
   assert.equal(secureStorage.getItem('athena:test-record'), 'legacy-value')
   assert.equal(window.localStorage.getItem('athena:test-record'), null)
 
-  secureStorage.setItem('athena:conversation', JSON.stringify({ message: 'private' }))
+  for (let index = 0; index < 100; index += 1) {
+    secureStorage.setItem('athena:conversation', JSON.stringify({ message: `private-${index}` }))
+  }
   await flushSecureStorage()
   await lockSecureStorage()
 
@@ -40,7 +42,7 @@ test('encrypted vault migrates, persists, rejects a wrong password, and re-wraps
   )
 
   await unlockSecureStorage('first-password', userId)
-  assert.deepEqual(JSON.parse(secureStorage.getItem('athena:conversation')), { message: 'private' })
+  assert.deepEqual(JSON.parse(secureStorage.getItem('athena:conversation')), { message: 'private-99' })
   await rewrapSecureStorage('second-password')
   await lockSecureStorage()
 

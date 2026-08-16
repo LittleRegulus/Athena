@@ -217,7 +217,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 
 .messages { width: min(850px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 120px; }
-.message { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 13px; padding: 23px 0; border-bottom: 1px solid rgba(255,255,255,.055); }
+.message { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 13px; padding: 23px 0; border-bottom: 1px solid rgba(255,255,255,.055); content-visibility: auto; contain-intrinsic-size: auto 320px; }
 .message:last-of-type { border-bottom: 0; }
 .message-identity { padding-top: 1px; }
 .mini-sigil { width: 27px; height: 27px; overflow: hidden; color: var(--gold-bright); font-size: 13px; }
