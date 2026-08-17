@@ -454,6 +454,77 @@ function GeneratedImageCard({ image, prompt, onReuse }) {
   )
 }
 
+function OwnerArchiveImage({ entry, onDelete }) {
+  const cardRef = useRef(null)
+  const [shouldLoad, setShouldLoad] = useState(false)
+  const [source, setSource] = useState('')
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    if (!cardRef.current || shouldLoad) return undefined
+    if (!('IntersectionObserver' in window)) {
+      setShouldLoad(true)
+      return undefined
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((item) => item.isIntersecting)) {
+        setShouldLoad(true)
+        observer.disconnect()
+      }
+    }, { rootMargin: '220px' })
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [shouldLoad])
+
+  useEffect(() => {
+    if (!shouldLoad) return undefined
+    let cancelled = false
+    let objectUrl = ''
+    apiFetch(`/api/owner-center/images/${entry.id}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}))
+          throw new Error(data.error || 'Private image unavailable.')
+        }
+        return response.blob()
+      })
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setSource(objectUrl)
+      })
+      .catch((error) => !cancelled && setLoadError(error.message))
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [entry.id, shouldLoad])
+
+  return (
+    <article className="owner-archive-card" ref={cardRef}>
+      <div className="owner-archive-preview">
+        {source ? (
+          <a href={source} target="_blank" rel="noreferrer" title="Open private image">
+            <img src={source} alt={`Lustify reference uploaded by ${entry.username}`} loading="lazy" decoding="async" />
+          </a>
+        ) : loadError ? (
+          <span className="owner-archive-load-error"><ImageIcon size={19} />{loadError}</span>
+        ) : (
+          <span className="owner-archive-loading"><RefreshCw size={18} className={shouldLoad ? 'spin' : ''} />Private preview</span>
+        )}
+      </div>
+      <div className="owner-archive-copy">
+        <span><strong>@{entry.username}</strong><small>{new Date(entry.createdAt).toLocaleString()}</small></span>
+        <small title={entry.originalName}>{entry.originalName} · {formatFileSize(entry.size)}</small>
+        <div>
+          {source && <a href={source} download={entry.originalName}><Download size={12} /> Download</a>}
+          <button type="button" onClick={() => onDelete(entry)}><Trash2 size={12} /> Delete</button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
 function titleFromMessage(content) {
   const words = content.trim().replace(/\s+/g, ' ').split(' ')
   const title = words.slice(0, 7).join(' ')
@@ -525,7 +596,16 @@ async function validateReferenceImageFile(file) {
   }
 }
 
-function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalance, onLogout, onChangePassword }) {
+function App({
+  currentUsername,
+  currentRole,
+  currentRoleTone,
+  canViewVeniceBalance,
+  isOwner,
+  onLogout,
+  onChangePassword,
+  onUnlockOwnerCenter,
+}) {
   const [conversations, setConversations] = useState(loadConversations)
   const [deletedConversations, setDeletedConversations] = useState(loadDeletedConversations)
   const [activeId, setActiveId] = useState(() => loadConversations()[0]?.id ?? null)
@@ -573,6 +653,17 @@ function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalan
   const [accountMessage, setAccountMessage] = useState('')
   const [accountError, setAccountError] = useState('')
   const [accountSaving, setAccountSaving] = useState(false)
+  const [ownerStats, setOwnerStats] = useState(null)
+  const [ownerStatsLoading, setOwnerStatsLoading] = useState(false)
+  const [ownerStatsError, setOwnerStatsError] = useState('')
+  const [ownerPasswordOpen, setOwnerPasswordOpen] = useState(false)
+  const [ownerPassword, setOwnerPassword] = useState('')
+  const [ownerUnlocking, setOwnerUnlocking] = useState(false)
+  const [ownerUnlockError, setOwnerUnlockError] = useState('')
+  const [ownerCenterOpen, setOwnerCenterOpen] = useState(false)
+  const [ownerImages, setOwnerImages] = useState([])
+  const [ownerImagesLoading, setOwnerImagesLoading] = useState(false)
+  const [ownerImagesError, setOwnerImagesError] = useState('')
   const [adultConfirmModel, setAdultConfirmModel] = useState(null)
   const [adultConfirmChecked, setAdultConfirmChecked] = useState(false)
   const [referenceConsentAcknowledged, setReferenceConsentAcknowledged] = useState(false)
@@ -837,10 +928,78 @@ function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalan
     }
   }
 
+  async function refreshOwnerStats() {
+    if (!isOwner) return
+    setOwnerStatsLoading(true)
+    setOwnerStatsError('')
+    try {
+      const response = await apiFetch('/api/owner-center/stats', { cache: 'no-store' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Owner Center statistics are unavailable.')
+      setOwnerStats(data)
+    } catch (requestError) {
+      setOwnerStatsError(requestError.message)
+    } finally {
+      setOwnerStatsLoading(false)
+    }
+  }
+
+  function requestOwnerCenterUnlock() {
+    if (!isOwner) return
+    setOwnerPassword('')
+    setOwnerUnlockError('')
+    setOwnerPasswordOpen(true)
+  }
+
+  async function unlockOwnerCenter(event) {
+    event.preventDefault()
+    if (!ownerPassword || ownerUnlocking) return
+    setOwnerUnlocking(true)
+    setOwnerUnlockError('')
+    try {
+      await onUnlockOwnerCenter(ownerPassword)
+      setOwnerImagesLoading(true)
+      const response = await apiFetch('/api/owner-center/images', { cache: 'no-store' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'The private Lustify archive is unavailable.')
+      setOwnerImages(Array.isArray(data.images) ? data.images : [])
+      setOwnerPassword('')
+      setOwnerPasswordOpen(false)
+      setOwnerCenterOpen(true)
+      setOwnerImagesError('')
+      await refreshOwnerStats()
+    } catch (requestError) {
+      setOwnerUnlockError(requestError.message)
+    } finally {
+      setOwnerUnlocking(false)
+      setOwnerImagesLoading(false)
+    }
+  }
+
+  async function deleteOwnerImage(entry) {
+    if (!window.confirm(`Delete the private Lustify reference uploaded by @${entry.username}?`)) return
+    setOwnerImagesError('')
+    try {
+      const response = await apiFetch(`/api/owner-center/images/${entry.id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'The private image could not be deleted.')
+      }
+      setOwnerImages((current) => current.filter((image) => image.id !== entry.id))
+      setOwnerStats((current) => current ? {
+        ...current,
+        lustifyReferences: Math.max(0, Number(current.lustifyReferences || 0) - 1),
+      } : current)
+    } catch (requestError) {
+      setOwnerImagesError(requestError.message)
+    }
+  }
+
   function openSettings() {
     setSettingsOpen(true)
     setMobileSidebar(false)
     if (canViewVeniceBalance) refreshBilling()
+    if (isOwner) refreshOwnerStats()
   }
 
   async function saveNewPassword(event) {
@@ -1544,6 +1703,7 @@ function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalan
         webSearchUsed: false,
       }, ...current].slice(0, 1000))
       refreshBilling()
+      if (isOwner) refreshOwnerStats()
     } catch (requestError) {
       if (requestError.name !== 'AbortError') {
         setError(requestError.message)
@@ -2398,6 +2558,33 @@ function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalan
                   {avatarError && <p className="profile-picture-error">{avatarError}</p>}
                 </section>
 
+                {isOwner && (
+                  <section className="settings-section owner-settings-section">
+                    <div className="settings-section-title settings-section-title--row">
+                      <div className="settings-section-title-copy">
+                        <ShieldCheck size={17} />
+                        <div><strong>Owner Center</strong><small>Private Lustify safety archive</small></div>
+                      </div>
+                      <span className="owner-only-badge">Owner only</span>
+                    </div>
+                    <div className="owner-stat-grid">
+                      <div>
+                        <small>Total images generated</small>
+                        <strong>{ownerStatsLoading && !ownerStats ? '...' : Number(ownerStats?.totalGenerated || 0).toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <small>Stored Lustify references</small>
+                        <strong>{ownerStatsLoading && !ownerStats ? '...' : Number(ownerStats?.lustifyReferences || 0).toLocaleString()}</strong>
+                      </div>
+                    </div>
+                    {ownerStatsError && <p className="settings-error">{ownerStatsError}</p>}
+                    <button className="owner-view-button" type="button" onClick={requestOwnerCenterUnlock}>
+                      <LockKeyhole size={14} /> View images
+                    </button>
+                    <p className="settings-note">Tracking begins with this Owner Center release. Only Lustify reference uploads are retained, and they expire after seven days. Generated outputs and prompts are not archived.</p>
+                  </section>
+                )}
+
                 <section className="settings-section">
                   <div className="settings-section-title">
                     <LockKeyhole size={17} />
@@ -2547,6 +2734,79 @@ function App({ currentUsername, currentRole, currentRoleTone, canViewVeniceBalan
                     ? 'The ledger estimates token charges and detected web searches. The Venice balance above is the authoritative account total and may include activity outside Athena.'
                     : 'The ledger estimates this device\'s model-token and web-search charges. It does not expose the shared Venice account balance.'}</p>
                 </section>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {isOwner && ownerPasswordOpen && (
+          <div
+            className="settings-overlay owner-center-overlay"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !ownerUnlocking) setOwnerPasswordOpen(false)
+            }}
+          >
+            <section className="owner-unlock-panel" role="dialog" aria-modal="true" aria-labelledby="owner-unlock-title">
+              <button className="icon-button owner-modal-close" onClick={() => setOwnerPasswordOpen(false)} disabled={ownerUnlocking} aria-label="Close Owner Center unlock">
+                <X size={18} />
+              </button>
+              <div className="owner-unlock-mark"><LockKeyhole size={20} /></div>
+              <p className="eyebrow">Owner verification</p>
+              <h2 id="owner-unlock-title">Unlock private images</h2>
+              <p>Enter the current password for the <strong>swipingcc</strong> Firebase account. Athena verifies it with Firebase and never stores it.</p>
+              <form onSubmit={unlockOwnerCenter}>
+                <label className="settings-field">
+                  <span>Owner password</span>
+                  <input
+                    type="password"
+                    value={ownerPassword}
+                    autoComplete="current-password"
+                    autoFocus
+                    onChange={(event) => setOwnerPassword(event.target.value)}
+                  />
+                </label>
+                {ownerUnlockError && <p className="settings-error" role="alert">{ownerUnlockError}</p>}
+                <button className="owner-unlock-button" type="submit" disabled={!ownerPassword || ownerUnlocking}>
+                  {ownerUnlocking ? <><RefreshCw size={14} className="spin" /> Verifying...</> : <><ShieldCheck size={14} /> Unlock Owner Center</>}
+                </button>
+              </form>
+            </section>
+          </div>
+        )}
+
+        {isOwner && ownerCenterOpen && (
+          <div
+            className="settings-overlay owner-center-overlay"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setOwnerCenterOpen(false)
+            }}
+          >
+            <section className="owner-center-panel" role="dialog" aria-modal="true" aria-labelledby="owner-center-title">
+              <header className="settings-header owner-center-header">
+                <div>
+                  <p className="eyebrow">Owner-only review</p>
+                  <h2 id="owner-center-title">Lustify reference archive</h2>
+                </div>
+                <button className="icon-button" onClick={() => setOwnerCenterOpen(false)} aria-label="Close Owner Center">
+                  <X size={19} />
+                </button>
+              </header>
+              <div className="owner-center-summary">
+                <span><small>Total generated</small><strong>{Number(ownerStats?.totalGenerated || 0).toLocaleString()}</strong></span>
+                <span><small>Private references</small><strong>{ownerImages.length.toLocaleString()}</strong></span>
+                <span><small>Automatic expiry</small><strong>7 days</strong></span>
+              </div>
+              {ownerImagesError && <p className="settings-error owner-center-error">{ownerImagesError}</p>}
+              <div className="owner-archive-grid">
+                {ownerImagesLoading ? (
+                  <div className="owner-archive-empty"><RefreshCw size={22} className="spin" /><strong>Loading private archive...</strong></div>
+                ) : ownerImages.length ? ownerImages.map((entry) => (
+                  <OwnerArchiveImage entry={entry} onDelete={deleteOwnerImage} key={entry.id} />
+                )) : (
+                  <div className="owner-archive-empty"><ImageIcon size={25} /><strong>No Lustify references stored</strong><p>References uploaded after this release will appear here for seven days.</p></div>
+                )}
               </div>
             </section>
           </div>

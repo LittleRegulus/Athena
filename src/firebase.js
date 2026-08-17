@@ -1,7 +1,9 @@
 import { initializeApp } from 'firebase/app'
 import {
+  EmailAuthProvider,
   getAuth,
   inMemoryPersistence,
+  reauthenticateWithCredential,
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
@@ -23,6 +25,7 @@ const ATHENA_ACCOUNTS = Object.freeze({
     role: 'Owner / Developer',
     roleTone: 'owner',
     canViewVeniceBalance: true,
+    isOwner: true,
   }),
   glizzyuli: Object.freeze({
     email: 'glizzyuli@athena.invalid',
@@ -63,6 +66,7 @@ export async function loginToAthena(username, password) {
         role: account.role,
         roleTone: account.roleTone,
         canViewVeniceBalance: Boolean(account.canViewVeniceBalance),
+        isOwner: Boolean(account.isOwner),
       },
     }
   } catch (error) {
@@ -79,6 +83,23 @@ export async function changeAthenaPassword(newPassword) {
   try {
     await updatePassword(auth.currentUser, newPassword)
   } catch (error) {
+    throw new Error(friendlyAuthError(error))
+  }
+}
+
+export async function unlockAthenaOwnerCenter(password) {
+  const user = auth.currentUser
+  if (!user || String(user.email || '').toLowerCase() !== 'swipingcc@athena.invalid') {
+    throw new Error('Owner Center is available only to Athena\'s owner.')
+  }
+  try {
+    const credential = EmailAuthProvider.credential(user.email, password)
+    await reauthenticateWithCredential(user, credential)
+    await user.getIdToken(true)
+  } catch (error) {
+    if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password') {
+      throw new Error('The owner password is incorrect.')
+    }
     throw new Error(friendlyAuthError(error))
   }
 }

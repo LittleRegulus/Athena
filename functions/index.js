@@ -2,6 +2,7 @@ import express from 'express'
 import { randomUUID } from 'node:crypto'
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
+import { getStorage } from 'firebase-admin/storage'
 import { onRequest } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import {
@@ -10,10 +11,23 @@ import {
   decodeProviderImage,
   IMAGE_MODELS,
 } from './imageGeneration.js'
+import {
+  decodeOwnerMetadata,
+  encodeOwnerMetadata,
+  hasRecentOwnerAuthentication,
+  isOwnerIdentity,
+  OWNER_GENERATION_PREFIX,
+  OWNER_REFERENCE_PREFIX,
+  OWNER_REFERENCE_RETENTION_MS,
+  ownerGenerationObjectName,
+  ownerReferenceObjectName,
+  usernameFromLoginEmail,
+} from './ownerCenter.js'
 
 initializeApp()
 
 const veniceApiKey = defineSecret('VENICE_API_KEY')
+const firebaseStorageBucket = 'athena-3dd48.firebasestorage.app'
 const allowedLoginEmails = new Set([
   'swipingcc@athena.invalid',
   'glizzyuli@athena.invalid',
@@ -91,6 +105,94 @@ function providerKey() {
   return String(veniceApiKey.value() || '').trim()
 }
 
+function ownerArchiveBucket() {
+  return getStorage().bucket(firebaseStorageBucket)
+}
+
+function requireOwner(request, response, next) {
+  if (!isOwnerIdentity(request.athenaUser)) {
+    return response.status(403).json({ error: 'Owner Center is available only to Athena\'s owner.' })
+  }
+  return next()
+}
+
+function requireRecentOwnerAuthentication(request, response, next) {
+  if (!hasRecentOwnerAuthentication(request.athenaUser)) {
+    return response.status(401).json({
+      error: 'Enter the owner account password again to unlock Owner Center.',
+      code: 'OWNER_REAUTH_REQUIRED',
+    })
+  }
+  return next()
+}
+
+async function ownerReferenceRecords({ removeExpired = true } = {}) {
+  const [files] = await ownerArchiveBucket().getFiles({ prefix: OWNER_REFERENCE_PREFIX })
+  const records = []
+  for (const file of files) {
+    const [metadata] = await file.getMetadata()
+    const custom = metadata.metadata || {}
+    const createdAt = String(custom.createdAt || metadata.timeCreated || '')
+    const expiresAt = String(custom.expiresAt || '')
+    if (removeExpired && expiresAt && Date.parse(expiresAt) <= Date.now()) {
+      await file.delete({ ignoreNotFound: true })
+      continue
+    }
+    records.push({
+      id: String(custom.archiveId || '').slice(0, 80),
+      username: String(custom.username || 'unknown').slice(0, 80),
+      originalName: decodeOwnerMetadata(custom.originalName).slice(0, 180) || 'reference image',
+      contentType: String(metadata.contentType || 'image/jpeg'),
+      size: Number(metadata.size || 0),
+      createdAt,
+      expiresAt,
+      modelId: 'lustify-v8',
+    })
+  }
+  return records.filter((record) => record.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+async function findOwnerReferenceFile(id) {
+  if (!/^[a-f0-9-]{36}$/i.test(String(id || ''))) return null
+  const [files] = await ownerArchiveBucket().getFiles({ prefix: `${OWNER_REFERENCE_PREFIX}${id}/` })
+  return files[0] || null
+}
+
+async function archiveLustifyReference(request, reference, archiveId, createdAt) {
+  const expiresAt = new Date(Date.parse(createdAt) + OWNER_REFERENCE_RETENTION_MS).toISOString()
+  const username = usernameFromLoginEmail(request.athenaUser?.email)
+  const file = ownerArchiveBucket().file(ownerReferenceObjectName(archiveId, reference.metadata.type))
+  await file.save(reference.data, {
+    resumable: false,
+    metadata: {
+      contentType: reference.metadata.type,
+      cacheControl: 'private, no-store, max-age=0',
+      metadata: {
+        archiveId,
+        username,
+        accountUid: String(request.athenaUser?.uid || request.athenaUser?.sub || '').slice(0, 128),
+        originalName: encodeOwnerMetadata(reference.metadata.name),
+        createdAt,
+        expiresAt,
+      },
+    },
+  })
+}
+
+async function recordOwnerGeneration(request, generation, imageId, createdAt) {
+  const event = {
+    id: imageId,
+    username: usernameFromLoginEmail(request.athenaUser?.email),
+    modelId: generation.model.id,
+    requestType: generation.reference ? 'reference-edit' : 'generate',
+    createdAt,
+  }
+  await ownerArchiveBucket().file(ownerGenerationObjectName(imageId, createdAt)).save(JSON.stringify(event), {
+    resumable: false,
+    metadata: { contentType: 'application/json', cacheControl: 'private, no-store, max-age=0' },
+  })
+}
+
 function dataUrlAttachment(input) {
   const dataUrl = String(input?.dataUrl || '')
   const match = dataUrl.match(/^data:([^;,]+);base64,([a-z0-9+/=\r\n]+)$/i)
@@ -138,19 +240,78 @@ app.get('/billing', async (request, response) => {
   }
 })
 
+app.get('/owner-center/stats', requireOwner, async (_request, response) => {
+  try {
+    const [[generationFiles], references] = await Promise.all([
+      ownerArchiveBucket().getFiles({ prefix: OWNER_GENERATION_PREFIX }),
+      ownerReferenceRecords(),
+    ])
+    response.setHeader('Cache-Control', 'private, no-store')
+    return response.json({ totalGenerated: generationFiles.length, lustifyReferences: references.length })
+  } catch {
+    return response.status(503).json({ error: 'Owner Center storage is unavailable. Check Firebase Storage billing and permissions.' })
+  }
+})
+
+app.get('/owner-center/images', requireOwner, requireRecentOwnerAuthentication, async (_request, response) => {
+  try {
+    const references = await ownerReferenceRecords()
+    response.setHeader('Cache-Control', 'private, no-store')
+    return response.json({ images: references })
+  } catch {
+    return response.status(503).json({ error: 'Athena could not load the private Lustify archive.' })
+  }
+})
+
+app.get('/owner-center/images/:id', requireOwner, requireRecentOwnerAuthentication, async (request, response) => {
+  try {
+    const file = await findOwnerReferenceFile(request.params.id)
+    if (!file) return response.status(404).json({ error: 'That archived image is no longer available.' })
+    const [[metadata], [bytes]] = await Promise.all([file.getMetadata(), file.download()])
+    response.setHeader('Cache-Control', 'private, no-store, max-age=0')
+    response.setHeader('Content-Type', String(metadata.contentType || 'image/jpeg'))
+    response.setHeader('Content-Length', String(bytes.length))
+    response.setHeader('X-Content-Type-Options', 'nosniff')
+    return response.status(200).end(bytes)
+  } catch {
+    return response.status(503).json({ error: 'Athena could not retrieve that private image.' })
+  }
+})
+
+app.delete('/owner-center/images/:id', requireOwner, requireRecentOwnerAuthentication, async (request, response) => {
+  try {
+    const file = await findOwnerReferenceFile(request.params.id)
+    if (!file) return response.status(404).json({ error: 'That archived image is no longer available.' })
+    await file.delete({ ignoreNotFound: true })
+    return response.status(204).end()
+  } catch {
+    return response.status(503).json({ error: 'Athena could not delete that private image.' })
+  }
+})
+
 app.post('/images/generate', async (request, response) => {
   if (!providerKey()) return response.status(503).json({ error: 'Athena is not connected to Venice yet.' })
   let generation
   let providerMode = 'generate'
+  let referenceAttachment = null
+  const imageId = randomUUID()
+  const requestCreatedAt = new Date().toISOString()
   try {
     if (request.body?.referenceAttachment) {
-      generation = buildImageEditProviderPayload(request.body, dataUrlAttachment(request.body.referenceAttachment))
+      referenceAttachment = dataUrlAttachment(request.body.referenceAttachment)
+      generation = buildImageEditProviderPayload(request.body, referenceAttachment)
       providerMode = 'reference-edit'
     } else {
       generation = buildImageProviderPayload(request.body)
     }
   } catch (error) {
     return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid image request.' })
+  }
+
+  if (generation.model.id === 'lustify-v8' && referenceAttachment) {
+    await archiveLustifyReference(request, referenceAttachment, imageId, requestCreatedAt).catch((error) => {
+      console.error('Owner Center could not archive a Lustify reference.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
+    })
   }
 
   try {
@@ -187,7 +348,7 @@ app.post('/images/generate', async (request, response) => {
     const createdAt = new Date().toISOString()
     const extension = outputType === 'image/png' ? 'png' : outputType === 'image/jpeg' ? 'jpg' : 'webp'
     const metadata = {
-      id: randomUUID(),
+      id: imageId,
       name: `athena-${generation.model.id}-${createdAt.slice(0, 19).replace(/[:T]/g, '-')}.${extension}`,
       type: outputType,
       size: image.length,
@@ -206,6 +367,9 @@ app.post('/images/generate', async (request, response) => {
       createdAt,
       url: `data:${outputType};base64,${image.toString('base64')}`,
     }
+    await recordOwnerGeneration(request, generation, imageId, createdAt).catch((error) => {
+      console.error('Owner Center could not record an image generation.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
+    })
     return response.status(201).json({ image: metadata, timing: providerData.timing ?? null })
   } catch (error) {
     return response.status(502).json({ error: error instanceof Error ? error.message : 'Athena could not reach the image provider.' })
