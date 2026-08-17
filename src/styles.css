@@ -687,11 +687,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .welcome { justify-content: flex-start; padding-top: 75px; }
   .welcome h1 { font-size: 42px; }
   .messages, .composer-zone { width: calc(100% - 24px); }
-  .settings-overlay { padding: 12px; }
-  .settings-panel { max-height: calc(100vh - 24px); }
+  /* Keep every modal below the iPhone Dynamic Island/status area and above the home indicator. */
+  .settings-overlay { padding: max(16px, calc(env(safe-area-inset-top, 0px) + 12px)) max(12px, env(safe-area-inset-right, 0px)) max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px)) max(12px, env(safe-area-inset-left, 0px)); }
+  .settings-panel { max-height: min(820px, calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 28px)); max-height: min(820px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 28px)); }
   .onboarding-overlay, .terms-overlay { padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
   .onboarding-panel, .terms-panel { max-height: 100%; }
-  .owner-center-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .owner-center-panel { max-height: min(850px, calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 28px)); max-height: min(850px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 28px)); }
   .owner-archive-grid { display: flex; flex-direction: column; }
   .upgrade-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
   .upgrade-plan-grid { grid-template-columns: 1fr; }
@@ -709,7 +710,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .owner-center-summary { gap: 6px; padding: 11px 13px; }
   .owner-center-summary > span { flex-direction: row; align-items: center; justify-content: space-between; }
   .owner-archive-grid { display: flex; flex-direction: column; padding: 13px; }
-  .owner-image-detail-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .owner-image-detail-panel { max-height: min(850px, calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 28px)); max-height: min(850px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 28px)); }
   .owner-image-detail-body { grid-template-columns: 1fr; gap: 12px; padding: 13px; }
   .owner-image-detail-preview { min-height: 180px; max-height: 43dvh; }
   .owner-image-detail-preview img { max-height: 43dvh; }
