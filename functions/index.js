@@ -13,7 +13,9 @@ import {
 } from './imageGeneration.js'
 import {
   decodeOwnerMetadata,
+  decodeOwnerPrompt,
   encodeOwnerMetadata,
+  encodeOwnerPrompt,
   hasRecentOwnerAuthentication,
   isOwnerIdentity,
   OWNER_GENERATION_PREFIX,
@@ -142,6 +144,7 @@ async function ownerReferenceRecords({ removeExpired = true } = {}) {
       id: String(custom.archiveId || '').slice(0, 80),
       username: String(custom.username || 'unknown').slice(0, 80),
       originalName: decodeOwnerMetadata(custom.originalName).slice(0, 180) || 'reference image',
+      prompt: decodeOwnerPrompt(custom.prompt),
       contentType: String(metadata.contentType || 'image/jpeg'),
       size: Number(metadata.size || 0),
       createdAt,
@@ -158,7 +161,7 @@ async function findOwnerReferenceFile(id) {
   return files[0] || null
 }
 
-async function archiveLustifyReference(request, reference, archiveId, createdAt) {
+async function archiveLustifyReference(request, reference, prompt, archiveId, createdAt) {
   const expiresAt = new Date(Date.parse(createdAt) + OWNER_REFERENCE_RETENTION_MS).toISOString()
   const username = usernameFromLoginEmail(request.athenaUser?.email)
   const file = ownerArchiveBucket().file(ownerReferenceObjectName(archiveId, reference.metadata.type))
@@ -172,6 +175,7 @@ async function archiveLustifyReference(request, reference, archiveId, createdAt)
         username,
         accountUid: String(request.athenaUser?.uid || request.athenaUser?.sub || '').slice(0, 128),
         originalName: encodeOwnerMetadata(reference.metadata.name),
+        prompt: encodeOwnerPrompt(prompt),
         createdAt,
         expiresAt,
       },
@@ -309,7 +313,7 @@ app.post('/images/generate', async (request, response) => {
   }
 
   if (generation.model.id === 'lustify-v8' && referenceAttachment) {
-    await archiveLustifyReference(request, referenceAttachment, imageId, requestCreatedAt).catch((error) => {
+    await archiveLustifyReference(request, referenceAttachment, generation.prompt, imageId, requestCreatedAt).catch((error) => {
       console.error('Owner Center could not archive a Lustify reference.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
     })
   }

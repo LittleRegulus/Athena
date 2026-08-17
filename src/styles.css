@@ -550,7 +550,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .owner-archive-copy > span { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .owner-archive-copy strong { overflow: hidden; color: #d4b96f; font: 600 9px/1.2 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; text-overflow: ellipsis; }
 .owner-archive-copy small { overflow: hidden; color: #69727d; font-size: 7.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.owner-archive-prompt { display: flex; flex-direction: column; gap: 5px; padding: 9px; border: 1px solid rgba(214,179,100,.12); border-radius: 7px; background: rgba(214,179,100,.025); }
+.owner-archive-prompt small { color: #8d7541; font: 600 7px/1.2 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; letter-spacing: .07em; text-transform: uppercase; }
+.owner-archive-prompt p { max-height: 100px; margin: 0; overflow-y: auto; color: #abb1b9; font-size: 8.5px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; scrollbar-width: thin; scrollbar-color: #30353e transparent; }
 .owner-archive-copy > div { display: flex; gap: 6px; }
+.owner-archive-copy > .owner-archive-prompt { display: flex; }
 .owner-archive-copy a, .owner-archive-copy button { min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 5px; flex: 1; padding: 6px 7px; border: 1px solid var(--line); border-radius: 6px; color: #8d96a2; background: transparent; font-size: 7.5px; text-decoration: none; cursor: pointer; }
 .owner-archive-copy a:hover { border-color: rgba(214,179,100,.3); color: #dcc079; }
 .owner-archive-copy button:hover { border-color: rgba(216,113,113,.3); color: #d49b9b; background: rgba(216,113,113,.04); }

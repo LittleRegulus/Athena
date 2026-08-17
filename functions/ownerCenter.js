@@ -47,3 +47,15 @@ export function decodeOwnerMetadata(value) {
     return String(value || '')
   }
 }
+
+export function encodeOwnerPrompt(value) {
+  return Buffer.from(String(value || '').slice(0, 1500), 'utf8').toString('base64url')
+}
+
+export function decodeOwnerPrompt(value) {
+  try {
+    return Buffer.from(String(value || ''), 'base64url').toString('utf8').slice(0, 1500)
+  } catch {
+    return ''
+  }
+}

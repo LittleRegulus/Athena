@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  decodeOwnerPrompt,
+  encodeOwnerPrompt,
   hasRecentOwnerAuthentication,
   isOwnerIdentity,
   ownerGenerationObjectName,
@@ -30,4 +32,10 @@ test('owner archive paths stay in private fixed prefixes', () => {
     ownerGenerationObjectName('1234', '2026-08-16T12:00:00.000Z'),
     /^owner-center\/generations\/2026-08-16T12-00-00-000Z-1234\.json$/,
   )
+})
+
+test('owner archive prompt metadata safely round-trips Unicode text', () => {
+  const prompt = 'Keep my face unchanged, then place me above the ocean. ✨'
+  assert.equal(decodeOwnerPrompt(encodeOwnerPrompt(prompt)), prompt)
+  assert.equal(decodeOwnerPrompt(encodeOwnerPrompt('a'.repeat(1600))).length, 1500)
 })

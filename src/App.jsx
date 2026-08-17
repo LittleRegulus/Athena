@@ -516,6 +516,10 @@ function OwnerArchiveImage({ entry, onDelete }) {
       <div className="owner-archive-copy">
         <span><strong>@{entry.username}</strong><small>{new Date(entry.createdAt).toLocaleString()}</small></span>
         <small title={entry.originalName}>{entry.originalName} · {formatFileSize(entry.size)}</small>
+        <div className="owner-archive-prompt">
+          <small>Prompt used</small>
+          <p>{entry.prompt || 'Prompt unavailable for this older archive item.'}</p>
+        </div>
         <div>
           {source && <a href={source} download={entry.originalName}><Download size={12} /> Download</a>}
           <button type="button" onClick={() => onDelete(entry)}><Trash2 size={12} /> Delete</button>
@@ -2581,7 +2585,7 @@ function App({
                     <button className="owner-view-button" type="button" onClick={requestOwnerCenterUnlock}>
                       <LockKeyhole size={14} /> View images
                     </button>
-                    <p className="settings-note">Tracking begins with this Owner Center release. Only Lustify reference uploads are retained, and they expire after seven days. Generated outputs and prompts are not archived.</p>
+                    <p className="settings-note">Lustify reference uploads and their submitted prompts are retained for owner-only review and expire after seven days. Generated outputs are not archived.</p>
                   </section>
                 )}
 
@@ -2950,7 +2954,7 @@ function App({
               <p>AI output may be incomplete, outdated, insecure, misleading, or incorrect. Independently review code and verify important claims before relying on them. Athena is not a substitute for qualified legal, medical, financial, security, or other professional advice.</p>
 
               <h3>4. Privacy and external processing</h3>
-              <p>Chat history, Trash, your nickname, profile image, uploaded originals, and generated images are stored on this computer, with a browser safety copy of chat metadata. Prompts, image prompts, active conversation context, and any attached files in that context are sent to the configured AI provider when you request a response. If Live Web is enabled, queries may also be processed by external search services. Do not submit secrets, private likenesses without permission, or data you are not permitted to share.</p>
+              <p>Chat history, Trash, your nickname, profile image, uploaded originals, and generated images are stored on this computer, with a browser safety copy of chat metadata. Prompts, image prompts, active conversation context, and any attached files in that context are sent to the configured AI provider when you request a response. For Lustify reference edits, the submitted reference image and prompt are also retained in the private owner-only archive for up to seven days. If Live Web is enabled, queries may also be processed by external search services. Do not submit secrets, private likenesses without permission, or data you are not permitted to share.</p>
 
               <h3>5. Costs and availability</h3>
               <p>Model requests and web searches may consume paid API credits. Availability, response quality, model behavior, and provider pricing can change. You are responsible for monitoring the account and credentials connected to this installation.</p>
