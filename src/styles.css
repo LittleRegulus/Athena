@@ -599,11 +599,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .owner-center-summary small { color: #666f7b; font-size: 7.5px; text-transform: uppercase; letter-spacing: .06em; }
 .owner-center-summary strong { color: #d9bd78; font: 600 13px/1.15 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; }
 .owner-center-error { margin: 12px 22px 0; }
-.owner-archive-grid { min-height: 260px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; padding: 17px 22px 24px; scrollbar-width: thin; scrollbar-color: #30353e transparent; }
+.owner-archive-grid { min-height: 260px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 17px 22px 24px; scrollbar-width: thin; scrollbar-color: #30353e transparent; }
 .owner-archive-card { min-width: 0; align-self: start; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 10px; background: #10141a; }
-.owner-archive-card--button { width: 100%; display: block; padding: 0; color: inherit; text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.owner-archive-card--button { width: 100%; min-height: 68px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: stretch; padding: 0; color: inherit; text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 .owner-archive-card--button:hover, .owner-archive-card--button:focus-visible { border-color: rgba(214,179,100,.42); background: #141a22; transform: translateY(-1px); outline: none; }
-.owner-archive-card-icon { height: 74px; display: grid; place-items: center; color: #c5a763; background: radial-gradient(circle at 50% 40%, rgba(214,179,100,.13), #090c11 72%); border-bottom: 1px solid rgba(255,255,255,.07); }
+.owner-archive-card-icon { display: grid; place-items: center; color: #c5a763; background: rgba(214,179,100,.045); border-right: 1px solid rgba(255,255,255,.07); }
 .owner-archive-summary { max-height: 38px; margin: 0; overflow: hidden; color: #9da5af; font-size: 8px; line-height: 1.5; white-space: pre-wrap; }
 .owner-archive-open-hint { display: flex; align-items: center; justify-content: flex-end; gap: 3px; color: #c2a45e !important; font-size: 7px !important; white-space: normal !important; }
 .owner-archive-preview { aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 40%, #1a202a, #090c11 72%); }
@@ -692,7 +692,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .onboarding-overlay, .terms-overlay { padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
   .onboarding-panel, .terms-panel { max-height: 100%; }
   .owner-center-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
-  .owner-archive-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .owner-archive-grid { display: flex; flex-direction: column; }
   .upgrade-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
   .upgrade-plan-grid { grid-template-columns: 1fr; }
   .upgrade-plan > p { min-height: 0; }
@@ -708,7 +708,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .owner-unlock-panel h2 { padding-right: 26px; font-size: 24px; }
   .owner-center-summary { gap: 6px; padding: 11px 13px; }
   .owner-center-summary > span { flex-direction: row; align-items: center; justify-content: space-between; }
-  .owner-archive-grid { grid-template-columns: 1fr; padding: 13px; }
+  .owner-archive-grid { display: flex; flex-direction: column; padding: 13px; }
   .owner-image-detail-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
   .owner-image-detail-body { grid-template-columns: 1fr; gap: 12px; padding: 13px; }
   .owner-image-detail-preview { min-height: 180px; max-height: 43dvh; }
