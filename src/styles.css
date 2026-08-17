@@ -601,6 +601,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .owner-center-error { margin: 12px 22px 0; }
 .owner-archive-grid { min-height: 260px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; padding: 17px 22px 24px; scrollbar-width: thin; scrollbar-color: #30353e transparent; }
 .owner-archive-card { min-width: 0; align-self: start; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 10px; background: #10141a; }
+.owner-archive-card--button { width: 100%; display: block; padding: 0; color: inherit; text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.owner-archive-card--button:hover, .owner-archive-card--button:focus-visible { border-color: rgba(214,179,100,.42); background: #141a22; transform: translateY(-1px); outline: none; }
+.owner-archive-card-icon { height: 74px; display: grid; place-items: center; color: #c5a763; background: radial-gradient(circle at 50% 40%, rgba(214,179,100,.13), #090c11 72%); border-bottom: 1px solid rgba(255,255,255,.07); }
+.owner-archive-summary { max-height: 38px; margin: 0; overflow: hidden; color: #9da5af; font-size: 8px; line-height: 1.5; white-space: pre-wrap; }
+.owner-archive-open-hint { display: flex; align-items: center; justify-content: flex-end; gap: 3px; color: #c2a45e !important; font-size: 7px !important; white-space: normal !important; }
 .owner-archive-preview { aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 40%, #1a202a, #090c11 72%); }
 .owner-archive-preview > a { width: 100%; height: 100%; display: block; }
 .owner-archive-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
@@ -622,6 +627,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .owner-archive-empty svg { margin-bottom: 10px; color: #8c7542; }
 .owner-archive-empty strong { color: #aeb5be; font-size: 11px; }
 .owner-archive-empty p { max-width: 360px; margin: 7px 0 0; color: #646d78; font-size: 8.5px; line-height: 1.5; }
+.owner-image-detail-overlay { z-index: 110; }
+.owner-image-detail-panel { width: min(820px, 100%); max-height: min(850px, calc(100vh - 48px)); max-height: min(850px, calc(100dvh - 48px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(214,179,100,.25); border-radius: 15px; background: #0c1016; box-shadow: 0 34px 110px rgba(0,0,0,.84); }
+.owner-image-detail-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(240px, .9fr); gap: 18px; overflow-y: auto; padding: 18px 22px 24px; }
+.owner-image-detail-preview { min-height: 260px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 10px; background: #090c11; }
+.owner-image-detail-preview img { width: 100%; max-height: min(560px, 62vh); display: block; object-fit: contain; }
+.owner-image-detail-meta { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
+.owner-image-detail-facts { display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px solid rgba(214,179,100,.13); border-radius: 8px; background: rgba(214,179,100,.025); }
+.owner-image-detail-facts span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.owner-image-detail-facts small { color: #8d7541; font: 600 7px/1.2 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; letter-spacing: .07em; text-transform: uppercase; }
+.owner-image-detail-facts strong { overflow-wrap: anywhere; color: #cbd0d7; font-size: 9px; font-weight: 500; }
+.owner-image-detail-actions { display: flex; gap: 7px; margin-top: auto; }
+.owner-image-detail-actions a, .owner-image-detail-actions button { min-height: 31px; display: flex; flex: 1; align-items: center; justify-content: center; gap: 5px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; color: #8d96a2; background: transparent; font-size: 7.5px; text-decoration: none; cursor: pointer; }
+.owner-image-detail-actions a:hover { border-color: rgba(214,179,100,.3); color: #dcc079; }
+.owner-image-detail-actions button:hover { border-color: rgba(216,113,113,.3); color: #d49b9b; background: rgba(216,113,113,.04); }
 .storage-status { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: #87909b; background: rgba(255,255,255,.018); font: 500 8px/1 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
 .storage-status--saved { border-color: rgba(110,191,155,.22); color: #82c7a7; background: rgba(110,191,155,.04); }
 .storage-status--saving, .storage-status--loading { border-color: rgba(214,179,100,.22); color: #d6b364; }
@@ -690,6 +709,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .owner-center-summary { gap: 6px; padding: 11px 13px; }
   .owner-center-summary > span { flex-direction: row; align-items: center; justify-content: space-between; }
   .owner-archive-grid { grid-template-columns: 1fr; padding: 13px; }
+  .owner-image-detail-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .owner-image-detail-body { grid-template-columns: 1fr; gap: 12px; padding: 13px; }
+  .owner-image-detail-preview { min-height: 180px; max-height: 43dvh; }
+  .owner-image-detail-preview img { max-height: 43dvh; }
+  .owner-image-detail-actions { flex-direction: column; }
   .owner-account-enable { align-items: stretch; flex-direction: column; }
   .upgrade-panel { padding: 26px 17px 20px; }
   .upgrade-heading { padding-inline: 8px; }

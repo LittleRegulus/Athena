@@ -454,30 +454,25 @@ function GeneratedImageCard({ image, prompt, onReuse }) {
   )
 }
 
-function OwnerArchiveImage({ entry, onDelete }) {
-  const cardRef = useRef(null)
-  const [shouldLoad, setShouldLoad] = useState(false)
+function OwnerArchiveImage({ entry, onOpen }) {
+  return (
+    <button type="button" className="owner-archive-card owner-archive-card--button" onClick={() => onOpen(entry)} aria-label={`View private reference from ${entry.username}`}>
+      <div className="owner-archive-card-icon"><ImageIcon size={22} /></div>
+      <div className="owner-archive-copy">
+        <span><strong>@{entry.username}</strong><small>{new Date(entry.createdAt).toLocaleString()}</small></span>
+        <small title={entry.originalName}>{entry.originalName} · {formatFileSize(entry.size)}</small>
+        <p className="owner-archive-summary">{entry.prompt || 'Prompt unavailable for this older archive item.'}</p>
+        <span className="owner-archive-open-hint">Click to view uploaded image and full prompt <ChevronRight size={13} /></span>
+      </div>
+    </button>
+  )
+}
+
+function OwnerArchiveDetail({ entry, onClose, onDelete }) {
   const [source, setSource] = useState('')
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    if (!cardRef.current || shouldLoad) return undefined
-    if (!('IntersectionObserver' in window)) {
-      setShouldLoad(true)
-      return undefined
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((item) => item.isIntersecting)) {
-        setShouldLoad(true)
-        observer.disconnect()
-      }
-    }, { rootMargin: '220px' })
-    observer.observe(cardRef.current)
-    return () => observer.disconnect()
-  }, [shouldLoad])
-
-  useEffect(() => {
-    if (!shouldLoad) return undefined
     let cancelled = false
     let objectUrl = ''
     apiFetch(`/api/owner-center/images/${entry.id}`, { cache: 'no-store' })
@@ -498,34 +493,35 @@ function OwnerArchiveImage({ entry, onDelete }) {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [entry.id, shouldLoad])
+  }, [entry.id])
 
   return (
-    <article className="owner-archive-card" ref={cardRef}>
-      <div className="owner-archive-preview">
-        {source ? (
-          <a href={source} target="_blank" rel="noreferrer" title="Open private image">
-            <img src={source} alt={`Lustify reference uploaded by ${entry.username}`} loading="lazy" decoding="async" />
-          </a>
-        ) : loadError ? (
-          <span className="owner-archive-load-error"><ImageIcon size={19} />{loadError}</span>
-        ) : (
-          <span className="owner-archive-loading"><RefreshCw size={18} className={shouldLoad ? 'spin' : ''} />Private preview</span>
-        )}
-      </div>
-      <div className="owner-archive-copy">
-        <span><strong>@{entry.username}</strong><small>{new Date(entry.createdAt).toLocaleString()}</small></span>
-        <small title={entry.originalName}>{entry.originalName} · {formatFileSize(entry.size)}</small>
-        <div className="owner-archive-prompt">
-          <small>Prompt used</small>
-          <p>{entry.prompt || 'Prompt unavailable for this older archive item.'}</p>
+    <div className="settings-overlay owner-center-overlay owner-image-detail-overlay" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose()
+    }}>
+      <section className="owner-image-detail-panel" role="dialog" aria-modal="true" aria-labelledby="owner-image-detail-title">
+        <header className="settings-header owner-center-header">
+          <div>
+            <p className="eyebrow">Private reference detail</p>
+            <h2 id="owner-image-detail-title">@{entry.username}</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Close image detail"><X size={19} /></button>
+        </header>
+        <div className="owner-image-detail-body">
+          <div className="owner-image-detail-preview">
+            {source ? <img src={source} alt={`Lustify reference uploaded by ${entry.username}`} /> : loadError ? <span className="owner-archive-load-error"><ImageIcon size={19} />{loadError}</span> : <span className="owner-archive-loading"><RefreshCw size={18} className="spin" />Loading private image</span>}
+          </div>
+          <div className="owner-image-detail-meta">
+            <div className="owner-image-detail-facts"><span><small>Uploaded by</small><strong>@{entry.username}</strong></span><span><small>Prompt time</small><strong>{new Date(entry.createdAt).toLocaleString()}</strong></span><span><small>File</small><strong>{entry.originalName} · {formatFileSize(entry.size)}</strong></span></div>
+            <div className="owner-archive-prompt"><small>Prompt used</small><p>{entry.prompt || 'Prompt unavailable for this older archive item.'}</p></div>
+            <div className="owner-image-detail-actions">
+              {source && <a href={source} download={entry.originalName}><Download size={13} /> Download image</a>}
+              <button type="button" onClick={() => onDelete(entry)}><Trash2 size={13} /> Delete archive item</button>
+            </div>
+          </div>
         </div>
-        <div>
-          {source && <a href={source} download={entry.originalName}><Download size={12} /> Download</a>}
-          <button type="button" onClick={() => onDelete(entry)}><Trash2 size={12} /> Delete</button>
-        </div>
-      </div>
-    </article>
+      </section>
+    </div>
   )
 }
 
@@ -741,6 +737,7 @@ function App({
   const [ownerImages, setOwnerImages] = useState([])
   const [ownerImagesLoading, setOwnerImagesLoading] = useState(false)
   const [ownerImagesError, setOwnerImagesError] = useState('')
+  const [ownerSelectedImage, setOwnerSelectedImage] = useState(null)
   const [adultConfirmModel, setAdultConfirmModel] = useState(null)
   const [adultConfirmChecked, setAdultConfirmChecked] = useState(false)
   const [referenceConsentAcknowledged, setReferenceConsentAcknowledged] = useState(false)
@@ -1125,6 +1122,7 @@ function App({
       setOwnerImages(Array.isArray(data.images) ? data.images : [])
       setOwnerPassword('')
       setOwnerPasswordOpen(false)
+      setOwnerSelectedImage(null)
       setOwnerCenterOpen(true)
       setOwnerImagesError('')
       await refreshOwnerStats()
@@ -1146,6 +1144,7 @@ function App({
         throw new Error(data.error || 'The private image could not be deleted.')
       }
       setOwnerImages((current) => current.filter((image) => image.id !== entry.id))
+      setOwnerSelectedImage(null)
       setOwnerStats((current) => current ? {
         ...current,
         lustifyReferences: Math.max(0, Number(current.lustifyReferences || 0) - 1),
@@ -3045,13 +3044,17 @@ function App({
                 {ownerImagesLoading ? (
                   <div className="owner-archive-empty"><RefreshCw size={22} className="spin" /><strong>Loading private archive...</strong></div>
                 ) : ownerImages.length ? ownerImages.map((entry) => (
-                  <OwnerArchiveImage entry={entry} onDelete={deleteOwnerImage} key={entry.id} />
+                  <OwnerArchiveImage entry={entry} onOpen={setOwnerSelectedImage} key={entry.id} />
                 )) : (
                   <div className="owner-archive-empty"><ImageIcon size={25} /><strong>No Lustify references stored</strong><p>References uploaded after this release will appear here for seven days.</p></div>
                 )}
               </div>
             </section>
           </div>
+        )}
+
+        {isOwner && ownerSelectedImage && (
+          <OwnerArchiveDetail entry={ownerSelectedImage} onClose={() => setOwnerSelectedImage(null)} onDelete={deleteOwnerImage} />
         )}
 
         {trashOpen && (
