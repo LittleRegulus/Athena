@@ -122,8 +122,8 @@ export default function AthenaAccess({ children }) {
     setStage('login')
   }
 
-  async function handlePasswordChange(newPassword) {
-    await changeAthenaPassword(newPassword)
+  async function handlePasswordChange(currentPassword, newPassword) {
+    await changeAthenaPassword(currentPassword, newPassword)
     await rewrapSecureStorage(newPassword)
   }
 

@@ -721,6 +721,7 @@ function App({
   const [attachmentNotice, setAttachmentNotice] = useState('')
   const [zipDownloadingId, setZipDownloadingId] = useState(null)
   const [adultImageAcknowledged, setAdultImageAcknowledged] = useState(() => secureStorage.getItem(ADULT_IMAGE_ACK_KEY) === 'accepted')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [accountMessage, setAccountMessage] = useState('')
@@ -1165,6 +1166,10 @@ function App({
     event.preventDefault()
     setAccountError('')
     setAccountMessage('')
+    if (!currentPassword) {
+      setAccountError('Enter your current password to confirm the change.')
+      return
+    }
     if (newPassword.length < 8) {
       setAccountError('Use at least 8 characters for the new password.')
       return
@@ -1175,7 +1180,8 @@ function App({
     }
     setAccountSaving(true)
     try {
-      await onChangePassword(newPassword)
+      await onChangePassword(currentPassword, newPassword)
+      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
       setAccountMessage('Password changed. Your encrypted device vault was updated too.')
@@ -2818,6 +2824,15 @@ function App({
                   </div>
                   <form className="password-change-form" onSubmit={saveNewPassword}>
                     <label className="settings-field">
+                      <span>Current password</span>
+                      <input
+                        type="password"
+                        value={currentPassword}
+                        autoComplete="current-password"
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                      />
+                    </label>
+                    <label className="settings-field">
                       <span>New password</span>
                       <input
                         type="password"
@@ -2838,7 +2853,7 @@ function App({
                       />
                     </label>
                     <div className="account-actions">
-                      <button className="account-save-button" type="submit" disabled={accountSaving || !newPassword || !confirmPassword}>
+                      <button className="account-save-button" type="submit" disabled={accountSaving || !currentPassword || !newPassword || !confirmPassword}>
                         Save new password
                       </button>
                       <button className="account-logout-button" type="button" onClick={logout} disabled={accountSaving}>

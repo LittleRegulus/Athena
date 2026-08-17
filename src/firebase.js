@@ -73,11 +73,18 @@ export async function logoutFromAthena() {
   await signOut(auth)
 }
 
-export async function changeAthenaPassword(newPassword) {
+export async function changeAthenaPassword(currentPassword, newPassword) {
   if (!auth.currentUser) throw new Error('Your Athena session has expired. Sign in again.')
   try {
+    if (!currentPassword) throw new Error('Enter your current password to confirm this change.')
+    const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword)
+    await reauthenticateWithCredential(auth.currentUser, credential)
     await updatePassword(auth.currentUser, newPassword)
+    await auth.currentUser.getIdToken(true)
   } catch (error) {
+    if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password') {
+      throw new Error('The current password is incorrect.')
+    }
     throw new Error(friendlyAuthError(error))
   }
 }
