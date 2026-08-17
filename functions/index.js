@@ -25,19 +25,21 @@ import {
   ownerReferenceObjectName,
   usernameFromLoginEmail,
 } from './ownerCenter.js'
+import {
+  accountFromToken,
+  canUseModel,
+  chatUsageUnits,
+  imageUsageUnits,
+  normalizedUsageState,
+  publicAccount,
+  requiredPlanForModel,
+  visibleModelsForAccount,
+} from './accessControl.js'
 
 initializeApp()
 
 const veniceApiKey = defineSecret('VENICE_API_KEY')
 const firebaseStorageBucket = 'athena-3dd48.firebasestorage.app'
-const allowedLoginEmails = new Set([
-  'swipingcc@athena.invalid',
-  'glizzyuli@athena.invalid',
-])
-const billingAccessEmails = new Set([
-  'swipingcc@athena.invalid',
-  'glizzyuli@athena.invalid',
-])
 const maxOutputTokens = 8192
 const maxAttachmentBytes = 8 * 1024 * 1024
 const maxAttachmentContextBytes = 20 * 1024 * 1024
@@ -93,10 +95,13 @@ app.use(async (request, response, next) => {
   if (!match) return response.status(401).json({ error: 'Sign in to Athena before using the model provider.' })
   try {
     const decoded = await getAuth().verifyIdToken(match[1])
-    if (!allowedLoginEmails.has(String(decoded.email || '').toLowerCase())) {
-      return response.status(403).json({ error: 'This Firebase account is not allowed to use Athena.' })
-    }
+    const account = accountFromToken(decoded)
+    if (!account) return response.status(403).json({
+      error: 'This Firebase account has not been enabled by Athena\'s owner yet.',
+      code: 'ATHENA_ACCOUNT_NOT_ENABLED',
+    })
     request.athenaUser = decoded
+    request.athenaAccount = account
     return next()
   } catch {
     return response.status(401).json({ error: 'Your Athena login has expired. Log out and sign in again.' })
@@ -111,8 +116,87 @@ function ownerArchiveBucket() {
   return getStorage().bucket(firebaseStorageBucket)
 }
 
+function accountUsageFile(account) {
+  return ownerArchiveBucket().file(`account-control/usage/${encodeURIComponent(account.uid)}.json`)
+}
+
+function storageNotFound(error) {
+  return Number(error?.code) === 404 || Number(error?.response?.statusCode) === 404
+}
+
+class UsageLimitError extends Error {
+  constructor(usage) {
+    super('Your weekly Athena usage is fully used. It will refill automatically at the reset time shown in Settings.')
+    this.usage = usage
+  }
+}
+
+async function readUsageRecord(account) {
+  const file = accountUsageFile(account)
+  try {
+    const [[metadata], [data]] = await Promise.all([file.getMetadata(), file.download()])
+    return { file, generation: Number(metadata.generation || 0), raw: JSON.parse(data.toString('utf8')) }
+  } catch (error) {
+    if (storageNotFound(error)) return { file, generation: 0, raw: null }
+    throw error
+  }
+}
+
+async function changeWeeklyUsage(account, delta = 0, { enforce = true } = {}) {
+  if (account.unlimited) return normalizedUsageState(null, account)
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const record = await readUsageRecord(account)
+    const usage = normalizedUsageState(record.raw, account)
+    const change = Number.isFinite(Number(delta)) ? Number(delta) : 0
+    if (enforce && change > usage.remaining) throw new UsageLimitError(usage)
+    const next = normalizedUsageState({
+      ...usage,
+      used: Math.max(0, usage.used + change),
+      resetAt: usage.resetAt,
+      plan: account.tier,
+    }, account)
+    try {
+      await record.file.save(JSON.stringify({
+        plan: next.plan,
+        used: next.used,
+        resetAt: next.resetAt,
+        updatedAt: new Date().toISOString(),
+      }), {
+        resumable: false,
+        metadata: { contentType: 'application/json', cacheControl: 'private, no-store, max-age=0' },
+        preconditionOpts: { ifGenerationMatch: record.generation },
+      })
+      return next
+    } catch (error) {
+      if (Number(error?.code) === 412) continue
+      throw error
+    }
+  }
+  throw new Error('Athena could not safely update the weekly usage ledger. Retry the request.')
+}
+
+async function reserveWeeklyUsage(request, response, units) {
+  try {
+    return await changeWeeklyUsage(request.athenaAccount, units)
+  } catch (error) {
+    if (error instanceof UsageLimitError) {
+      response.status(429).json({ error: error.message, code: 'WEEKLY_USAGE_LIMIT', usage: error.usage })
+      return null
+    }
+    response.status(503).json({ error: 'Athena could not verify the weekly usage allowance. Retry shortly.' })
+    return null
+  }
+}
+
+async function refundWeeklyUsage(account, units) {
+  if (!units || account.unlimited) return
+  await changeWeeklyUsage(account, -units, { enforce: false }).catch((error) => {
+    console.error('Athena could not refund a failed request usage reservation.', { message: error instanceof Error ? error.message : 'Unknown error' })
+  })
+}
+
 function requireOwner(request, response, next) {
-  if (!isOwnerIdentity(request.athenaUser)) {
+  if (!request.athenaAccount?.isOwner || !isOwnerIdentity(request.athenaUser)) {
     return response.status(403).json({ error: 'Owner Center is available only to Athena\'s owner.' })
   }
   return next()
@@ -216,13 +300,23 @@ app.get('/health', (_request, response) => {
   response.json({ ok: true, providerConfigured: Boolean(providerKey()), provider: 'Venice AI' })
 })
 
-app.get('/models', (_request, response) => {
-  response.json({ models: [...MODELS.map((model) => ({ ...model, type: 'chat' })), ...IMAGE_MODELS] })
+app.get('/account', async (request, response) => {
+  try {
+    const usage = await changeWeeklyUsage(request.athenaAccount, 0, { enforce: false })
+    response.setHeader('Cache-Control', 'private, no-store')
+    return response.json({ account: publicAccount(request.athenaAccount, usage) })
+  } catch {
+    return response.status(503).json({ error: 'Athena could not load this account\'s access information.' })
+  }
+})
+
+app.get('/models', (request, response) => {
+  const allModels = [...MODELS.map((model) => ({ ...model, type: 'chat' })), ...IMAGE_MODELS]
+  response.json({ models: visibleModelsForAccount(request.athenaAccount, allModels) })
 })
 
 app.get('/billing', async (request, response) => {
-  const loginEmail = String(request.athenaUser?.email || '').toLowerCase()
-  if (!billingAccessEmails.has(loginEmail)) {
+  if (!request.athenaAccount?.canViewVeniceBalance) {
     return response.status(403).json({ error: 'Venice balance access is limited to Athena owners and administrators.' })
   }
   if (!providerKey()) return response.status(503).json({ error: 'Athena is not connected to Venice yet.' })
@@ -241,6 +335,40 @@ app.get('/billing', async (request, response) => {
     })
   } catch {
     return response.status(502).json({ error: 'Athena could not retrieve the Venice balance.' })
+  }
+})
+
+app.post('/billing/checkout', (request, response) => {
+  const plan = String(request.body?.plan || '')
+  if (!['pro-monthly', 'pro-annual', 'enterprise-monthly'].includes(plan)) {
+    return response.status(400).json({ error: 'Choose a valid Athena subscription plan.' })
+  }
+  return response.status(503).json({
+    error: 'Secure Square checkout is not connected yet. The owner must add the Square plan credentials first.',
+    code: 'SQUARE_CHECKOUT_NOT_CONFIGURED',
+  })
+})
+
+app.post('/owner-center/accounts', requireOwner, async (request, response) => {
+  const username = String(request.body?.username || '').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) {
+    return response.status(400).json({ error: 'Use a 3-32 character username containing letters, numbers, dots, dashes, or underscores.' })
+  }
+  const email = `${username}@athena.invalid`
+  try {
+    const user = await getAuth().getUserByEmail(email)
+    const claims = user.customClaims || {}
+    await getAuth().setCustomUserClaims(user.uid, {
+      ...claims,
+      athenaAccess: true,
+      athenaPlan: ['pro', 'enterprise'].includes(claims.athenaPlan) ? claims.athenaPlan : 'free',
+    })
+    return response.status(200).json({ username, email, enabled: true })
+  } catch (error) {
+    if (error?.code === 'auth/user-not-found') {
+      return response.status(404).json({ error: `Create ${email} in Firebase Authentication first, then enable it here.` })
+    }
+    return response.status(503).json({ error: 'Athena could not enable that Firebase account.' })
   }
 })
 
@@ -312,6 +440,17 @@ app.post('/images/generate', async (request, response) => {
     return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid image request.' })
   }
 
+  if (!canUseModel(request.athenaAccount, generation.model.id)) {
+    return response.status(403).json({
+      error: 'Upgrade your Athena plan to use that image model.',
+      code: 'MODEL_UPGRADE_REQUIRED',
+      requiredPlan: requiredPlanForModel(generation.model.id),
+    })
+  }
+  const usageUnits = imageUsageUnits(generation.model.id, Boolean(referenceAttachment))
+  const usage = await reserveWeeklyUsage(request, response, usageUnits)
+  if (!usage) return undefined
+
   if (generation.model.id === 'lustify-v8' && referenceAttachment) {
     await archiveLustifyReference(request, referenceAttachment, generation.prompt, imageId, requestCreatedAt).catch((error) => {
       console.error('Owner Center could not archive a Lustify reference.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
@@ -333,6 +472,7 @@ app.post('/images/generate', async (request, response) => {
       } catch {
         // Plain-text provider error.
       }
+      await refundWeeklyUsage(request.athenaAccount, usageUnits)
       return response.status(upstream.status).json({ error: String(providerError || 'Venice rejected the image request.').slice(0, 1000) })
     }
 
@@ -374,8 +514,9 @@ app.post('/images/generate', async (request, response) => {
     await recordOwnerGeneration(request, generation, imageId, createdAt).catch((error) => {
       console.error('Owner Center could not record an image generation.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
     })
-    return response.status(201).json({ image: metadata, timing: providerData.timing ?? null })
+    return response.status(201).json({ image: metadata, timing: providerData.timing ?? null, usage })
   } catch (error) {
+    await refundWeeklyUsage(request.athenaAccount, usageUnits)
     return response.status(502).json({ error: error instanceof Error ? error.message : 'Athena could not reach the image provider.' })
   }
 })
@@ -387,6 +528,16 @@ app.post('/chat', async (request, response) => {
     return response.status(400).json({ error: 'A conversation with 1-80 messages is required.' })
   }
   if (!ALLOWED_MODELS.has(model)) return response.status(400).json({ error: 'That model is not enabled in Athena.' })
+  if (!canUseModel(request.athenaAccount, model)) {
+    return response.status(403).json({
+      error: 'Upgrade your Athena plan to use that chat model.',
+      code: 'MODEL_UPGRADE_REQUIRED',
+      requiredPlan: requiredPlanForModel(model),
+    })
+  }
+  const usageUnits = chatUsageUnits(model, Boolean(webSearch))
+  const usage = await reserveWeeklyUsage(request, response, usageUnits)
+  if (!usage) return undefined
 
   try {
     const modelInfo = MODELS.find((entry) => entry.id === model)
@@ -440,6 +591,7 @@ app.post('/chat', async (request, response) => {
     })
     if (!upstream.ok) {
       const detail = (await upstream.text()).slice(0, 1000)
+      await refundWeeklyUsage(request.athenaAccount, usageUnits)
       return response.status(upstream.status).json({ error: `The model provider rejected the request (${upstream.status}).`, detail })
     }
 
@@ -455,6 +607,7 @@ app.post('/chat', async (request, response) => {
     }
     return response.end()
   } catch (error) {
+    await refundWeeklyUsage(request.athenaAccount, usageUnits)
     if (response.headersSent) return response.end()
     const message = error instanceof Error ? error.message : 'Athena could not reach the model provider.'
     const status = /attach|image|empty|conversation/i.test(message) ? 400 : 502

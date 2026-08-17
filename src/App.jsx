@@ -529,6 +529,73 @@ function OwnerArchiveImage({ entry, onDelete }) {
   )
 }
 
+function UpgradeModal({ currentTier, requiredPlan, loading, error, onCheckout, onClose }) {
+  const plans = [
+    {
+      id: 'pro-monthly',
+      name: 'Pro Monthly',
+      price: '$17.99',
+      cadence: 'per month',
+      detail: 'Flexible access to Athena, Coder, Imagine, and Imagine HQ.',
+      tone: 'pro',
+    },
+    {
+      id: 'pro-annual',
+      name: 'Pro Annual',
+      price: '$149',
+      cadence: 'per year',
+      detail: 'The complete Pro model set with the strongest long-term value.',
+      tone: 'annual',
+      badge: 'Save $66.88',
+    },
+    {
+      id: 'enterprise-monthly',
+      name: 'Enterprise',
+      price: '$299',
+      cadence: 'per month',
+      detail: 'Adds Athena Power, the largest weekly allowance, and no request cooldown.',
+      tone: 'enterprise',
+      badge: requiredPlan === 'enterprise' ? 'Required for Power' : 'Maximum access',
+    },
+  ]
+
+  return (
+    <div className="settings-overlay upgrade-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="upgrade-panel" role="dialog" aria-modal="true" aria-labelledby="upgrade-title">
+        <button className="icon-button upgrade-close" type="button" onClick={onClose} aria-label="Close upgrade plans"><X size={18} /></button>
+        <div className="upgrade-heading">
+          <span className="upgrade-mark"><Sparkles size={20} /></span>
+          <p className="eyebrow">Athena membership</p>
+          <h2 id="upgrade-title">Unlock more ways to create.</h2>
+          <p>Upgrade for advanced coding, stronger reasoning, premium image generation, and a larger weekly allowance.</p>
+        </div>
+        <div className="upgrade-plan-grid">
+          {plans.map((plan) => {
+            const alreadyIncluded = currentTier === 'enterprise' || (currentTier === 'pro' && plan.id !== 'enterprise-monthly')
+            return (
+              <article className={`upgrade-plan upgrade-plan--${plan.tone}`} key={plan.id}>
+                <div className="upgrade-plan-title"><strong>{plan.name}</strong>{plan.badge && <span>{plan.badge}</span>}</div>
+                <div className="upgrade-price"><strong>{plan.price}</strong><small>{plan.cadence}</small></div>
+                <p>{plan.detail}</p>
+                <ul>
+                  <li><Check size={12} /> Advanced chat models</li>
+                  <li><Check size={12} /> Premium image models</li>
+                  <li><Check size={12} /> Seven-day usage refill</li>
+                </ul>
+                <button type="button" onClick={() => onCheckout(plan.id)} disabled={loading || alreadyIncluded}>
+                  {alreadyIncluded ? 'Current access' : loading ? 'Connecting...' : `Choose ${plan.name}`}
+                </button>
+              </article>
+            )
+          })}
+        </div>
+        {error && <p className="upgrade-error" role="alert">{error}</p>}
+        <button className="upgrade-continue" type="button" onClick={onClose}>Continue with my current models</button>
+      </section>
+    </div>
+  )
+}
+
 function titleFromMessage(content) {
   const words = content.trim().replace(/\s+/g, ' ').split(' ')
   const title = words.slice(0, 7).join(' ')
@@ -606,9 +673,15 @@ function App({
   currentRoleTone,
   canViewVeniceBalance,
   isOwner,
+  isAdmin,
+  accountTier,
+  accountPlanLabel,
+  accountUsage,
+  allowedModelIds,
   onLogout,
   onChangePassword,
   onUnlockOwnerCenter,
+  onRefreshAccount,
 }) {
   const [conversations, setConversations] = useState(loadConversations)
   const [deletedConversations, setDeletedConversations] = useState(loadDeletedConversations)
@@ -672,6 +745,14 @@ function App({
   const [adultConfirmChecked, setAdultConfirmChecked] = useState(false)
   const [referenceConsentAcknowledged, setReferenceConsentAcknowledged] = useState(false)
   const [referenceImageSize, setReferenceImageSize] = useState('original')
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('pro')
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [checkoutError, setCheckoutError] = useState('')
+  const [ownerEnableUsername, setOwnerEnableUsername] = useState('')
+  const [ownerEnableLoading, setOwnerEnableLoading] = useState(false)
+  const [ownerEnableError, setOwnerEnableError] = useState('')
+  const [ownerEnableMessage, setOwnerEnableMessage] = useState('')
   const abortRef = useRef(null)
   const bottomRef = useRef(null)
   const textareaRef = useRef(null)
@@ -685,15 +766,31 @@ function App({
   const conversationPersistTimerRef = useRef(null)
   const lastConversationPersistAtRef = useRef(0)
 
+  const allowedModelSet = useMemo(() => new Set(allowedModelIds || []), [allowedModelIds])
+
+  function isModelLocked(model) {
+    if (!model) return false
+    if (typeof model.locked === 'boolean') return model.locked
+    return allowedModelSet.size > 0 && !allowedModelSet.has(model.id)
+  }
+
   const active = conversations.find((conversation) => conversation.id === activeId) ?? null
   const activeMessages = useMemo(() => getActiveMessages(active), [active])
   const activeAttachmentCount = useMemo(
     () => activeMessages.reduce((total, message) => total + (message.attachments?.length ?? 0), 0),
     [activeMessages],
   )
-  const activeModel = models.find((model) => model.id === active?.model) ?? models[0]
+  const selectedConversationModel = models.find((model) => model.id === active?.model)
+  const accessibleFallbackModel = models.find((model) => model.id === 'venice-uncensored-1-2' && !isModelLocked(model))
+    ?? models.find((model) => !isModelLocked(model))
+  const activeModel = selectedConversationModel && !isModelLocked(selectedConversationModel)
+    ? selectedConversationModel
+    : accessibleFallbackModel ?? models[0]
   const chatModels = useMemo(() => models.filter((model) => model.type !== 'image'), [models])
-  const imageModels = useMemo(() => models.filter((model) => model.type === 'image'), [models])
+  const imageModels = useMemo(
+    () => models.filter((model) => model.type === 'image' && (model.id !== 'lustify-v8' || isOwner || isAdmin)),
+    [isAdmin, isOwner, models],
+  )
   const isImageMode = activeModel?.type === 'image'
   const imageReference = isImageMode && pendingAttachments.length === 1 && pendingAttachments[0].kind === 'image'
     ? pendingAttachments[0]
@@ -874,6 +971,15 @@ function App({
   }, [])
 
   useEffect(() => {
+    if (!active || (selectedConversationModel && !isModelLocked(selectedConversationModel))) return
+    const fallback = models.find((model) => model.id === 'venice-uncensored-1-2' && !isModelLocked(model))
+      ?? models.find((model) => !isModelLocked(model))
+    if (fallback && active.model !== fallback.id) {
+      updateConversation(active.id, (current) => ({ ...current, model: fallback.id }))
+    }
+  }, [active?.id, active?.model, allowedModelSet, models, selectedConversationModel])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
   }, [activeMessages, isStreaming])
 
@@ -945,6 +1051,56 @@ function App({
       setOwnerStatsError(requestError.message)
     } finally {
       setOwnerStatsLoading(false)
+    }
+  }
+
+  async function beginCheckout(plan) {
+    setCheckoutLoading(true)
+    setCheckoutError('')
+    try {
+      const response = await apiFetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Secure checkout is unavailable.')
+      if (!/^https:\/\//i.test(data.url || '')) throw new Error('Square returned an invalid checkout address.')
+      window.location.assign(data.url)
+    } catch (requestError) {
+      setCheckoutError(requestError.message)
+    } finally {
+      setCheckoutLoading(false)
+    }
+  }
+
+  function showUpgrade(requiredPlan = 'pro') {
+    setUpgradeRequiredPlan(requiredPlan === 'enterprise' ? 'enterprise' : 'pro')
+    setCheckoutError('')
+    setModelMenuOpen(false)
+    setUpgradeOpen(true)
+  }
+
+  async function enableFirebaseAccount(event) {
+    event.preventDefault()
+    if (!ownerEnableUsername.trim() || ownerEnableLoading) return
+    setOwnerEnableLoading(true)
+    setOwnerEnableError('')
+    setOwnerEnableMessage('')
+    try {
+      const response = await apiFetch('/api/owner-center/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: ownerEnableUsername }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Athena could not enable that account.')
+      setOwnerEnableMessage(`@${data.username} can now sign in with Free access.`)
+      setOwnerEnableUsername('')
+    } catch (requestError) {
+      setOwnerEnableError(requestError.message)
+    } finally {
+      setOwnerEnableLoading(false)
     }
   }
 
@@ -1144,7 +1300,10 @@ function App({
     pendingAttachments.forEach((attachment) => {
       if (!usesRemoteApi) apiFetch(`/api/attachments/${attachment.id}`, { method: 'DELETE' }).catch(() => {})
     })
-    const conversation = makeConversation(active?.model ?? preferences.defaultModel)
+    const requestedModel = models.find((model) => model.id === (active?.model ?? preferences.defaultModel))
+    const fallbackModel = models.find((model) => model.id === 'venice-uncensored-1-2' && !isModelLocked(model))
+      ?? models.find((model) => !isModelLocked(model))
+    const conversation = makeConversation(requestedModel && !isModelLocked(requestedModel) ? requestedModel.id : fallbackModel?.id)
     conversation.webSearch = active ? active.webSearch : preferences.defaultWebSearch
     setConversations((current) => [conversation, ...current])
     setActiveId(conversation.id)
@@ -1163,7 +1322,10 @@ function App({
 
   function ensureConversation() {
     if (active) return active
-    const conversation = makeConversation(preferences.defaultModel)
+    const requestedModel = models.find((model) => model.id === preferences.defaultModel)
+    const conversation = makeConversation(requestedModel && !isModelLocked(requestedModel)
+      ? requestedModel.id
+      : accessibleFallbackModel?.id)
     conversation.webSearch = preferences.defaultWebSearch
     setConversations((current) => [conversation, ...current])
     setActiveId(conversation.id)
@@ -1326,6 +1488,10 @@ function App({
 
   function selectModel(modelId) {
     const selected = models.find((model) => model.id === modelId)
+    if (isModelLocked(selected)) {
+      showUpgrade(selected?.requiredPlan)
+      return
+    }
     if (selected?.adult && !adultImageAcknowledged) {
       setAdultConfirmModel(selected)
       setAdultConfirmChecked(false)
@@ -1375,6 +1541,10 @@ function App({
 
   function reuseImagePrompt(message, image) {
     const imageModel = models.find((model) => model.id === image.modelId)
+    if (isModelLocked(imageModel)) {
+      showUpgrade(imageModel?.requiredPlan)
+      return
+    }
     if (imageModel) {
       const conversation = ensureConversation()
       updateConversation(conversation.id, (current) => ({
@@ -1469,8 +1639,8 @@ function App({
       const needsMultiImageSwitch = imageCount > 1 && !selectedModel?.supportsMultipleImages
 
       if (needsVisionSwitch || needsMultiImageSwitch) {
-        const compatibleModel = models.find((model) => model.id === 'qwen-3-6-plus')
-          ?? models.find((model) => model.supportsVision && model.supportsMultipleImages)
+        const compatibleModel = models.find((model) => model.id === 'qwen-3-6-plus' && !isModelLocked(model))
+          ?? models.find((model) => model.supportsVision && model.supportsMultipleImages && !isModelLocked(model))
         if (compatibleModel) {
           updateConversation(targetConversation.id, (current) => ({ ...current, model: compatibleModel.id }))
           setAttachmentNotice(`Switched to ${compatibleModel.label} so Athena can analyze ${imageCount > 1 ? 'multiple images' : 'the image'}.`)
@@ -1679,7 +1849,11 @@ function App({
         }),
       })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || `Image request failed (${response.status})`)
+      if (!response.ok) {
+        if (data.code === 'MODEL_UPGRADE_REQUIRED') showUpgrade(data.requiredPlan)
+        if (data.code === 'WEEKLY_USAGE_LIMIT') void onRefreshAccount().catch(() => {})
+        throw new Error(data.error || `Image request failed (${response.status})`)
+      }
       if (!data.image?.id) throw new Error('The provider returned an empty image response.')
 
       updateConversation(conversation.id, (current) => ({
@@ -1708,6 +1882,7 @@ function App({
       }, ...current].slice(0, 1000))
       refreshBilling()
       if (isOwner) refreshOwnerStats()
+      void onRefreshAccount().catch(() => {})
     } catch (requestError) {
       if (requestError.name !== 'AbortError') {
         setError(requestError.message)
@@ -1736,7 +1911,12 @@ function App({
     const typedContent = text.trim()
     if (isStreaming || attachmentsUploading) return
     const conversation = ensureConversation()
-    const selectedModel = models.find((model) => model.id === conversation.model) ?? models[0]
+    const requestedModel = models.find((model) => model.id === conversation.model)
+    if (requestedModel && isModelLocked(requestedModel)) {
+      showUpgrade(requestedModel.requiredPlan)
+      return
+    }
+    const selectedModel = requestedModel ?? accessibleFallbackModel ?? models[0]
     if (selectedModel?.type === 'image') {
       if (!typedContent) return
       if (selectedModel.adult && !adultImageAcknowledged) {
@@ -1867,6 +2047,8 @@ function App({
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
+        if (data.code === 'MODEL_UPGRADE_REQUIRED') showUpgrade(data.requiredPlan)
+        if (data.code === 'WEEKLY_USAGE_LIMIT') void onRefreshAccount().catch(() => {})
         throw new Error(data.error || `Request failed (${response.status})`)
       }
 
@@ -1925,6 +2107,7 @@ function App({
         }, ...current].slice(0, 1000))
         refreshBilling()
       }
+      void onRefreshAccount().catch(() => {})
     } catch (requestError) {
       if (streamRenderTimer !== null) {
         window.clearTimeout(streamRenderTimer)
@@ -2127,7 +2310,7 @@ function App({
                 <div className="model-menu">
                   <div className="model-menu-section-label"><BrainCircuit size={12} /> Chat models</div>
                   {chatModels.map((model) => (
-                    <button key={model.id} onClick={() => selectModel(model.id)}>
+                    <button className={isModelLocked(model) ? 'model-option--locked' : ''} key={model.id} onClick={() => selectModel(model.id)} aria-disabled={isModelLocked(model)}>
                       <span>
                         <span className="model-menu-heading">
                           <strong>{model.label}</strong>
@@ -2136,12 +2319,14 @@ function App({
                         <small>{model.description}</small>
                         <small className="model-cost">{model.cost}</small>
                       </span>
-                      {model.id === active?.model && <Check size={16} />}
+                      {isModelLocked(model)
+                        ? <span className="model-lock-label"><LockKeyhole size={12} />{model.requiredPlan === 'enterprise' ? 'Enterprise' : 'Pro'}</span>
+                        : model.id === active?.model && <Check size={16} />}
                     </button>
                   ))}
                   <div className="model-menu-section-label model-menu-section-label--image"><ImageIcon size={12} /> Image models</div>
                   {imageModels.map((model) => (
-                    <button key={model.id} onClick={() => selectModel(model.id)}>
+                    <button className={isModelLocked(model) ? 'model-option--locked' : ''} key={model.id} onClick={() => selectModel(model.id)} aria-disabled={isModelLocked(model)}>
                       <span>
                         <span className="model-menu-heading">
                           <strong>{model.label}</strong>
@@ -2150,7 +2335,9 @@ function App({
                         <small>{model.description}</small>
                         <small className="model-cost">{model.cost}</small>
                       </span>
-                      {model.id === active?.model && <Check size={16} />}
+                      {isModelLocked(model)
+                        ? <span className="model-lock-label"><LockKeyhole size={12} />{model.requiredPlan === 'enterprise' ? 'Enterprise' : 'Pro'}</span>
+                        : model.id === active?.model && <Check size={16} />}
                     </button>
                   ))}
                 </div>
@@ -2586,8 +2773,44 @@ function App({
                       <LockKeyhole size={14} /> View images
                     </button>
                     <p className="settings-note">Lustify reference uploads and their submitted prompts are retained for owner-only review and expire after seven days. Generated outputs are not archived.</p>
+                    <form className="owner-account-enable" onSubmit={enableFirebaseAccount}>
+                      <label>
+                        <span>Enable a Firebase username</span>
+                        <input value={ownerEnableUsername} onChange={(event) => setOwnerEnableUsername(event.target.value)} placeholder="username" autoCapitalize="none" autoCorrect="off" />
+                      </label>
+                      <button type="submit" disabled={ownerEnableLoading || !ownerEnableUsername.trim()}>{ownerEnableLoading ? 'Enabling...' : 'Enable Free access'}</button>
+                    </form>
+                    {ownerEnableError && <p className="settings-error">{ownerEnableError}</p>}
+                    {ownerEnableMessage && <p className="settings-success">{ownerEnableMessage}</p>}
+                    <p className="settings-note">Create the matching username@athena.invalid user in Firebase Authentication first. This server-issued access flag prevents unapproved signups from using your Venice balance.</p>
                   </section>
                 )}
+
+                <section className="settings-section plan-usage-section">
+                  <div className="settings-section-title settings-section-title--row">
+                    <div className="settings-section-title-copy">
+                      <BarChart3 size={17} />
+                      <div><strong>Weekly plan usage</strong><small>Shared securely across signed-in devices</small></div>
+                    </div>
+                    <span className={`plan-tier-badge plan-tier-badge--${accountTier}`}>{accountPlanLabel}</span>
+                  </div>
+                  {accountUsage?.unlimited ? (
+                    <div className="plan-usage-unlimited"><Sparkles size={16} /><span><strong>Unlimited access</strong><small>Owner and Admin accounts are not charged against weekly limits.</small></span></div>
+                  ) : (
+                    <>
+                      <div className="plan-usage-copy">
+                        <span><strong>{Math.round(Number(accountUsage?.percentage ?? 100))}%</strong> remaining</span>
+                        <small>{Number(accountUsage?.remaining ?? accountUsage?.limit ?? 0)} of {Number(accountUsage?.limit ?? 0)} units available</small>
+                      </div>
+                      <div className="plan-usage-track" role="progressbar" aria-label="Weekly Athena usage remaining" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(Number(accountUsage?.percentage ?? 100))}>
+                        <span style={{ width: `${Math.max(0, Math.min(100, Number(accountUsage?.percentage ?? 100)))}%` }} />
+                      </div>
+                      <p className="settings-note">Text requests use 1-3 units based on the model. Images use 3-10 units. Your allowance resets {accountUsage?.resetAt ? new Date(accountUsage.resetAt).toLocaleString() : 'every seven days'}.</p>
+                    </>
+                  )}
+                  {!accountUsage?.unlimited && accountTier === 'free' && <button className="plan-upgrade-button" type="button" onClick={() => showUpgrade('pro')}><Sparkles size={14} /> View upgrade plans</button>}
+                  {accountTier === 'pro' && <button className="plan-upgrade-button" type="button" onClick={() => showUpgrade('enterprise')}><Rocket size={14} /> Explore Enterprise</button>}
+                </section>
 
                 <section className="settings-section">
                   <div className="settings-section-title">
@@ -2640,7 +2863,7 @@ function App({
                       value={preferences.defaultModel}
                       onChange={(event) => setPreferences((current) => ({ ...current, defaultModel: event.target.value }))}
                     >
-                      {chatModels.map((model) => <option value={model.id} key={model.id}>{model.label} - {model.badge}</option>)}
+                      {chatModels.filter((model) => !isModelLocked(model)).map((model) => <option value={model.id} key={model.id}>{model.label} - {model.badge}</option>)}
                     </select>
                   </label>
                   <label className="settings-check">
@@ -2741,6 +2964,21 @@ function App({
               </div>
             </section>
           </div>
+        )}
+
+        {upgradeOpen && (
+          <UpgradeModal
+            currentTier={accountTier}
+            requiredPlan={upgradeRequiredPlan}
+            loading={checkoutLoading}
+            error={checkoutError}
+            onCheckout={beginCheckout}
+            onClose={() => {
+              if (checkoutLoading) return
+              setUpgradeOpen(false)
+              setCheckoutError('')
+            }}
+          />
         )}
 
         {isOwner && ownerPasswordOpen && (

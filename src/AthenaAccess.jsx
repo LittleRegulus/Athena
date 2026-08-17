@@ -5,6 +5,7 @@ import {
   changeAthenaPassword,
   loginToAthena,
   logoutFromAthena,
+  refreshAthenaAccount,
   unlockAthenaOwnerCenter,
 } from './firebase.js'
 import {
@@ -130,6 +131,12 @@ export default function AthenaAccess({ children }) {
     await unlockAthenaOwnerCenter(password)
   }
 
+  async function handleAccountRefresh() {
+    const account = await refreshAthenaAccount()
+    setCurrentAccount(account)
+    return account
+  }
+
   if (stage === 'splash') return <SplashScreen onComplete={() => setStage('login')} />
   if (stage === 'login') return <LoginScreen onLogin={handleLogin} />
   return children({
@@ -138,8 +145,14 @@ export default function AthenaAccess({ children }) {
     currentRoleTone: currentAccount.roleTone,
     canViewVeniceBalance: currentAccount.canViewVeniceBalance,
     isOwner: currentAccount.isOwner,
+    isAdmin: currentAccount.isAdmin,
+    accountTier: currentAccount.tier,
+    accountPlanLabel: currentAccount.planLabel,
+    accountUsage: currentAccount.usage,
+    allowedModelIds: currentAccount.allowedModelIds,
     onLogout: handleLogout,
     onChangePassword: handlePasswordChange,
     onUnlockOwnerCenter: handleOwnerCenterUnlock,
+    onRefreshAccount: handleAccountRefresh,
   })
 }

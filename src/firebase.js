@@ -19,25 +19,21 @@ const firebaseConfig = {
   appId: '1:587573361379:web:f3a83e586f67fdc39ee3d6',
 }
 
-const ATHENA_ACCOUNTS = Object.freeze({
-  swipingcc: Object.freeze({
-    email: import.meta.env.VITE_ATHENA_LOGIN_EMAIL || 'swipingcc@athena.invalid',
-    role: 'Owner / Developer',
-    roleTone: 'owner',
-    canViewVeniceBalance: true,
-    isOwner: true,
-  }),
-  glizzyuli: Object.freeze({
-    email: 'glizzyuli@athena.invalid',
-    role: 'Admin / Co-Developer',
-    roleTone: 'admin',
-    canViewVeniceBalance: true,
-  }),
-})
-
 const firebaseApp = initializeApp(firebaseConfig)
 export const auth = getAuth(firebaseApp)
 const persistenceReady = setPersistence(auth, inMemoryPersistence)
+const configuredApiBase = String(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+
+async function loadAthenaAccount(user) {
+  const token = await user.getIdToken()
+  const response = await fetch(`${configuredApiBase}/account`, {
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || 'Athena could not load this account.')
+  return data.account
+}
 
 function friendlyAuthError(error) {
   const code = error?.code || ''
@@ -54,24 +50,23 @@ function friendlyAuthError(error) {
 
 export async function loginToAthena(username, password) {
   const normalizedUsername = username.trim().toLowerCase()
-  const account = ATHENA_ACCOUNTS[normalizedUsername]
-  if (!account) throw new Error('The username or password is incorrect.')
+  if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(normalizedUsername)) {
+    throw new Error('The username or password is incorrect.')
+  }
   try {
     await persistenceReady
-    const credential = await signInWithEmailAndPassword(auth, account.email, password)
-    return {
-      credential,
-      account: {
-        username: normalizedUsername,
-        role: account.role,
-        roleTone: account.roleTone,
-        canViewVeniceBalance: Boolean(account.canViewVeniceBalance),
-        isOwner: Boolean(account.isOwner),
-      },
-    }
+    const credential = await signInWithEmailAndPassword(auth, `${normalizedUsername}@athena.invalid`, password)
+    const account = await loadAthenaAccount(credential.user)
+    return { credential, account }
   } catch (error) {
+    if (auth.currentUser) await signOut(auth).catch(() => {})
     throw new Error(friendlyAuthError(error))
   }
+}
+
+export async function refreshAthenaAccount() {
+  if (!auth.currentUser) throw new Error('Your Athena session has expired. Sign in again.')
+  return loadAthenaAccount(auth.currentUser)
 }
 
 export async function logoutFromAthena() {
