@@ -469,31 +469,41 @@ function OwnerArchiveImage({ entry, onOpen }) {
 }
 
 function OwnerArchiveDetail({ entry, onClose, onDelete }) {
-  const [source, setSource] = useState('')
+  const [sources, setSources] = useState({ reference: '', result: '' })
   const [loadError, setLoadError] = useState('')
+  const [activeImage, setActiveImage] = useState(0)
+  const touchStartX = useRef(null)
 
   useEffect(() => {
     let cancelled = false
-    let objectUrl = ''
-    apiFetch(`/api/owner-center/images/${entry.id}`, { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}))
-          throw new Error(data.error || 'Private image unavailable.')
-        }
-        return response.blob()
-      })
-      .then((blob) => {
-        if (cancelled) return
-        objectUrl = URL.createObjectURL(blob)
-        setSource(objectUrl)
-      })
-      .catch((error) => !cancelled && setLoadError(error.message))
+    const objectUrls = []
+    const loadImage = async (kind, endpoint) => {
+      const response = await apiFetch(endpoint, { cache: 'no-store' })
+      if (!response.ok) {
+        if (kind === 'result' && response.status === 404) return
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Private image unavailable.')
+      }
+      const objectUrl = URL.createObjectURL(await response.blob())
+      objectUrls.push(objectUrl)
+      if (!cancelled) setSources((current) => ({ ...current, [kind]: objectUrl }))
+    }
+    Promise.all([
+      loadImage('reference', `/api/owner-center/images/${entry.id}`),
+      loadImage('result', `/api/owner-center/images/${entry.id}/result`),
+    ]).catch((error) => !cancelled && setLoadError(error.message))
     return () => {
       cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl))
     }
   }, [entry.id])
+
+  const imageSource = activeImage === 1 ? sources.result : sources.reference
+  const hasResult = Boolean(sources.result)
+  function moveImage(direction) {
+    if (!hasResult) return
+    setActiveImage((current) => Math.min(1, Math.max(0, current + direction)))
+  }
 
   return (
     <div className="settings-overlay owner-center-overlay owner-image-detail-overlay" role="presentation" onMouseDown={(event) => {
@@ -508,14 +518,20 @@ function OwnerArchiveDetail({ entry, onClose, onDelete }) {
           <button className="icon-button" onClick={onClose} aria-label="Close image detail"><X size={19} /></button>
         </header>
         <div className="owner-image-detail-body">
-          <div className="owner-image-detail-preview">
-            {source ? <img src={source} alt={`Lustify reference uploaded by ${entry.username}`} /> : loadError ? <span className="owner-archive-load-error"><ImageIcon size={19} />{loadError}</span> : <span className="owner-archive-loading"><RefreshCw size={18} className="spin" />Loading private image</span>}
+          <div className="owner-image-detail-preview" onTouchStart={(event) => { touchStartX.current = event.changedTouches[0]?.clientX ?? null }} onTouchEnd={(event) => {
+            if (touchStartX.current === null) return
+            const delta = (event.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current
+            if (Math.abs(delta) > 45) moveImage(delta < 0 ? 1 : -1)
+            touchStartX.current = null
+          }}>
+            {imageSource ? <img src={imageSource} alt={`${activeImage === 1 ? 'Lustify output' : 'Uploaded reference'} for ${entry.username}`} /> : loadError ? <span className="owner-archive-load-error"><ImageIcon size={19} />{loadError}</span> : <span className="owner-archive-loading"><RefreshCw size={18} className="spin" />Loading private images</span>}
+            {hasResult && <div className="owner-image-detail-nav"><button type="button" onClick={() => moveImage(-1)} disabled={activeImage === 0} aria-label="Show uploaded reference"><ChevronLeft size={17} /></button><span>{activeImage === 0 ? 'Uploaded reference' : 'Lustify output'} · swipe</span><button type="button" onClick={() => moveImage(1)} disabled={activeImage === 1} aria-label="Show Lustify output"><ChevronRight size={17} /></button></div>}
           </div>
           <div className="owner-image-detail-meta">
             <div className="owner-image-detail-facts"><span><small>Uploaded by</small><strong>@{entry.username}</strong></span><span><small>Prompt time</small><strong>{new Date(entry.createdAt).toLocaleString()}</strong></span><span><small>File</small><strong>{entry.originalName} · {formatFileSize(entry.size)}</strong></span></div>
             <div className="owner-archive-prompt"><small>Prompt used</small><p>{entry.prompt || 'Prompt unavailable for this older archive item.'}</p></div>
             <div className="owner-image-detail-actions">
-              {source && <a href={source} download={entry.originalName}><Download size={13} /> Download image</a>}
+              {imageSource && <a href={imageSource} download={activeImage === 1 ? `athena-lustify-output-${entry.id}.webp` : entry.originalName}><Download size={13} /> Download {activeImage === 1 ? 'output' : 'reference'}</a>}
               <button type="button" onClick={() => onDelete(entry)}><Trash2 size={13} /> Delete archive item</button>
             </div>
           </div>

@@ -7,6 +7,7 @@ import {
   isOwnerIdentity,
   ownerGenerationObjectName,
   ownerReferenceObjectName,
+  ownerResultObjectName,
 } from './ownerCenter.js'
 
 test('owner access accepts only the exact owner Firebase identity', () => {
@@ -28,6 +29,7 @@ test('owner archive paths stay in private fixed prefixes', () => {
     ownerReferenceObjectName('1234', 'image/png'),
     'owner-center/lustify-references/1234/reference.png',
   )
+  assert.equal(ownerResultObjectName('1234', 'image/webp'), 'owner-center/lustify-references/1234/result.webp')
   assert.match(
     ownerGenerationObjectName('1234', '2026-08-16T12:00:00.000Z'),
     /^owner-center\/generations\/2026-08-16T12-00-00-000Z-1234\.json$/,

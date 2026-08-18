@@ -31,6 +31,10 @@ export function ownerReferenceObjectName(id, contentType) {
   return `${OWNER_REFERENCE_PREFIX}${id}/reference.${ownerReferenceExtension(contentType)}`
 }
 
+export function ownerResultObjectName(id, contentType) {
+  return `${OWNER_REFERENCE_PREFIX}${id}/result.${ownerReferenceExtension(contentType)}`
+}
+
 export function ownerGenerationObjectName(id, createdAt) {
   const sortableTime = String(createdAt || new Date().toISOString()).replace(/[:.]/g, '-')
   return `${OWNER_GENERATION_PREFIX}${sortableTime}-${id}.json`

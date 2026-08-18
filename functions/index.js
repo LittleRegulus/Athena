@@ -23,6 +23,7 @@ import {
   OWNER_REFERENCE_RETENTION_MS,
   ownerGenerationObjectName,
   ownerReferenceObjectName,
+  ownerResultObjectName,
   usernameFromLoginEmail,
 } from './ownerCenter.js'
 import {
@@ -216,12 +217,18 @@ async function ownerReferenceRecords({ removeExpired = true } = {}) {
   const [files] = await ownerArchiveBucket().getFiles({ prefix: OWNER_REFERENCE_PREFIX })
   const records = []
   for (const file of files) {
+    if (!/\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) continue
     const [metadata] = await file.getMetadata()
     const custom = metadata.metadata || {}
     const createdAt = String(custom.createdAt || metadata.timeCreated || '')
     const expiresAt = String(custom.expiresAt || '')
     if (removeExpired && expiresAt && Date.parse(expiresAt) <= Date.now()) {
       await file.delete({ ignoreNotFound: true })
+      const archiveId = String(custom.archiveId || '')
+      if (/^[a-f0-9-]{36}$/i.test(archiveId) && /\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) {
+        const resultFile = await findOwnerResultFile(archiveId)
+        await resultFile?.delete({ ignoreNotFound: true })
+      }
       continue
     }
     records.push({
@@ -242,7 +249,13 @@ async function ownerReferenceRecords({ removeExpired = true } = {}) {
 async function findOwnerReferenceFile(id) {
   if (!/^[a-f0-9-]{36}$/i.test(String(id || ''))) return null
   const [files] = await ownerArchiveBucket().getFiles({ prefix: `${OWNER_REFERENCE_PREFIX}${id}/` })
-  return files[0] || null
+  return files.find((file) => /\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) || null
+}
+
+async function findOwnerResultFile(id) {
+  if (!/^[a-f0-9-]{36}$/i.test(String(id || ''))) return null
+  const [files] = await ownerArchiveBucket().getFiles({ prefix: `${OWNER_REFERENCE_PREFIX}${id}/` })
+  return files.find((file) => /\/result\.(?:png|jpe?g|webp)$/i.test(file.name)) || null
 }
 
 async function archiveLustifyReference(request, reference, prompt, archiveId, createdAt) {
@@ -263,6 +276,20 @@ async function archiveLustifyReference(request, reference, prompt, archiveId, cr
         createdAt,
         expiresAt,
       },
+    },
+  })
+}
+
+async function archiveLustifyResult(request, image, contentType, archiveId, createdAt) {
+  const expiresAt = new Date(Date.parse(createdAt) + OWNER_REFERENCE_RETENTION_MS).toISOString()
+  const username = usernameFromLoginEmail(request.athenaUser?.email)
+  const file = ownerArchiveBucket().file(ownerResultObjectName(archiveId, contentType))
+  await file.save(image, {
+    resumable: false,
+    metadata: {
+      contentType,
+      cacheControl: 'private, no-store, max-age=0',
+      metadata: { archiveId, username, createdAt, expiresAt, kind: 'lustify-result' },
     },
   })
 }
@@ -410,11 +437,30 @@ app.get('/owner-center/images/:id', requireOwner, requireRecentOwnerAuthenticati
   }
 })
 
+app.get('/owner-center/images/:id/result', requireOwner, requireRecentOwnerAuthentication, async (request, response) => {
+  try {
+    const file = await findOwnerResultFile(request.params.id)
+    if (!file) return response.status(404).json({ error: 'A remixed output is not available for this archive item.' })
+    const [[metadata], [bytes]] = await Promise.all([file.getMetadata(), file.download()])
+    response.setHeader('Cache-Control', 'private, no-store, max-age=0')
+    response.setHeader('Content-Type', String(metadata.contentType || 'image/webp'))
+    response.setHeader('Content-Length', String(bytes.length))
+    response.setHeader('X-Content-Type-Options', 'nosniff')
+    return response.status(200).end(bytes)
+  } catch {
+    return response.status(503).json({ error: 'Athena could not retrieve that private remixed image.' })
+  }
+})
+
 app.delete('/owner-center/images/:id', requireOwner, requireRecentOwnerAuthentication, async (request, response) => {
   try {
     const file = await findOwnerReferenceFile(request.params.id)
     if (!file) return response.status(404).json({ error: 'That archived image is no longer available.' })
-    await file.delete({ ignoreNotFound: true })
+    const resultFile = await findOwnerResultFile(request.params.id)
+    await Promise.all([
+      file.delete({ ignoreNotFound: true }),
+      resultFile?.delete({ ignoreNotFound: true }),
+    ])
     return response.status(204).end()
   } catch {
     return response.status(503).json({ error: 'Athena could not delete that private image.' })
@@ -510,6 +556,11 @@ app.post('/images/generate', async (request, response) => {
       providerRequestId: String(providerData.id || upstream.headers.get('x-request-id') || '').slice(0, 200) || null,
       createdAt,
       url: `data:${outputType};base64,${image.toString('base64')}`,
+    }
+    if (generation.model.id === 'lustify-v8' && referenceAttachment) {
+      await archiveLustifyResult(request, image, outputType, imageId, requestCreatedAt).catch((error) => {
+        console.error('Owner Center could not archive the Lustify result.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
+      })
     }
     await recordOwnerGeneration(request, generation, imageId, createdAt).catch((error) => {
       console.error('Owner Center could not record an image generation.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
