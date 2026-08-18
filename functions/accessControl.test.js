@@ -12,8 +12,11 @@ import {
 test('owner and admin keep every model and unlimited usage', () => {
   const owner = accountFromToken({ uid: '1', email: 'swipingcc@athena.invalid' })
   const admin = accountFromToken({ uid: '2', email: 'glizzyuli@athena.invalid' })
+  const adminOnly = accountFromToken({ uid: '5', email: 'daboieric@athena.invalid' })
   assert.equal(owner.unlimited, true)
   assert.equal(admin.unlimited, true)
+  assert.equal(adminOnly.role, 'Admin')
+  assert.equal(adminOnly.unlimited, true)
   assert.equal(canUseModel(owner, 'lustify-v8'), true)
   assert.equal(canUseModel(admin, 'qwen-3-6-plus'), true)
 })

@@ -1,5 +1,5 @@
 export const OWNER_EMAIL = 'swipingcc@athena.invalid'
-export const ADMIN_EMAILS = new Set(['glizzyuli@athena.invalid'])
+export const ADMIN_EMAILS = new Set(['glizzyuli@athena.invalid', 'daboieric@athena.invalid'])
 // Accounts created by the owner before the Owner Center enable flow is deployed.
 // Future accounts should be enabled from Owner Center, which issues the same server-side claim.
 export const INITIAL_FREE_EMAILS = new Set(['bsunner04@athena.invalid'])
@@ -69,7 +69,7 @@ export function accountFromToken(decoded) {
       uid: decoded.uid || decoded.sub,
       email,
       username: usernameFromEmail(email),
-      role: 'Admin / Co-Developer',
+      role: email === 'glizzyuli@athena.invalid' ? 'Admin / Co-Developer' : 'Admin',
       roleTone: 'admin',
       tier: 'privileged',
       isOwner: false,

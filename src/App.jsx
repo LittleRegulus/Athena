@@ -2793,7 +2793,7 @@ function App({
                     <button className="owner-view-button" type="button" onClick={requestOwnerCenterUnlock}>
                       <LockKeyhole size={14} /> View images
                     </button>
-                    <p className="settings-note">Lustify reference uploads and their submitted prompts are retained for owner-only review and expire after seven days. Generated outputs are not archived.</p>
+                    <p className="settings-note">Lustify reference uploads, paired outputs, and their submitted prompts are retained for owner-only review and expire after seven days.</p>
                     <form className="owner-account-enable" onSubmit={enableFirebaseAccount}>
                       <label>
                         <span>Enable a Firebase username</span>
