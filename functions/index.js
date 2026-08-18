@@ -344,7 +344,7 @@ app.get('/models', (request, response) => {
 
 app.get('/billing', async (request, response) => {
   if (!request.athenaAccount?.canViewVeniceBalance) {
-    return response.status(403).json({ error: 'Venice balance access is limited to Athena owners and administrators.' })
+    return response.status(403).json({ error: 'Venice balance access is limited to Athena\'s owner.' })
   }
   if (!providerKey()) return response.status(503).json({ error: 'Athena is not connected to Venice yet.' })
   try {

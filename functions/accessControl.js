@@ -74,7 +74,7 @@ export function accountFromToken(decoded) {
       tier: 'privileged',
       isOwner: false,
       isAdmin: true,
-      canViewVeniceBalance: true,
+      canViewVeniceBalance: false,
       unlimited: true,
     }
   }

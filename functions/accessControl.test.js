@@ -17,6 +17,8 @@ test('owner and admin keep every model and unlimited usage', () => {
   assert.equal(admin.unlimited, true)
   assert.equal(adminOnly.role, 'Admin')
   assert.equal(adminOnly.unlimited, true)
+  assert.equal(adminOnly.canViewVeniceBalance, false)
+  assert.equal(admin.canViewVeniceBalance, false)
   assert.equal(canUseModel(owner, 'lustify-v8'), true)
   assert.equal(canUseModel(admin, 'qwen-3-6-plus'), true)
 })
