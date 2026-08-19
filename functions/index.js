@@ -235,7 +235,11 @@ async function ownerReferenceRecords({ removeExpired = true } = {}) {
     }
     const createdAt = String(custom.createdAt || metadata.timeCreated || '')
     const expiresAt = String(custom.expiresAt || '')
-    if (removeExpired && expiresAt && Date.parse(expiresAt) <= Date.now()) {
+    const policyExpiryMs = Date.parse(createdAt) + OWNER_REFERENCE_RETENTION_MS
+    const recordedExpiryMs = Date.parse(expiresAt)
+    const effectiveExpiryMs = Number.isFinite(recordedExpiryMs) ? Math.min(recordedExpiryMs, policyExpiryMs) : policyExpiryMs
+    const effectiveExpiresAt = Number.isFinite(effectiveExpiryMs) ? new Date(effectiveExpiryMs).toISOString() : expiresAt
+    if (removeExpired && Number.isFinite(effectiveExpiryMs) && effectiveExpiryMs <= Date.now()) {
       await file.delete({ ignoreNotFound: true })
       if (/^[a-f0-9-]{36}$/i.test(archiveId) && /\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) {
         const resultFile = await findOwnerResultFile(archiveId)
@@ -251,7 +255,7 @@ async function ownerReferenceRecords({ removeExpired = true } = {}) {
       contentType: String(metadata.contentType || 'image/jpeg'),
       size: Number(metadata.size || 0),
       createdAt,
-      expiresAt,
+      expiresAt: effectiveExpiresAt,
       modelId: 'lustify-v8',
     }
   }))
