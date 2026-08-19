@@ -19,6 +19,7 @@ import {
   hasRecentOwnerAuthentication,
   isOwnerIdentity,
   OWNER_GENERATION_PREFIX,
+  OWNER_LOGIN_EMAIL,
   OWNER_REFERENCE_PREFIX,
   OWNER_REFERENCE_RETENTION_MS,
   ownerGenerationObjectName,
@@ -215,25 +216,36 @@ function requireRecentOwnerAuthentication(request, response, next) {
 
 async function ownerReferenceRecords({ removeExpired = true } = {}) {
   const [files] = await ownerArchiveBucket().getFiles({ prefix: OWNER_REFERENCE_PREFIX })
-  const records = []
-  for (const file of files) {
-    if (!/\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) continue
+  const ownerUsername = OWNER_LOGIN_EMAIL.split('@')[0]
+  const records = await Promise.all(files.map(async (file) => {
+    if (!/\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) return null
     const [metadata] = await file.getMetadata()
     const custom = metadata.metadata || {}
+    const username = String(custom.username || 'unknown').slice(0, 80)
+    const archiveId = String(custom.archiveId || '')
+    if (username.toLowerCase() === ownerUsername.toLowerCase()) {
+      if (removeExpired) {
+        await file.delete({ ignoreNotFound: true })
+        if (/^[a-f0-9-]{36}$/i.test(archiveId)) {
+          const resultFile = await findOwnerResultFile(archiveId)
+          await resultFile?.delete({ ignoreNotFound: true })
+        }
+      }
+      return null
+    }
     const createdAt = String(custom.createdAt || metadata.timeCreated || '')
     const expiresAt = String(custom.expiresAt || '')
     if (removeExpired && expiresAt && Date.parse(expiresAt) <= Date.now()) {
       await file.delete({ ignoreNotFound: true })
-      const archiveId = String(custom.archiveId || '')
       if (/^[a-f0-9-]{36}$/i.test(archiveId) && /\/reference\.(?:png|jpe?g|webp)$/i.test(file.name)) {
         const resultFile = await findOwnerResultFile(archiveId)
         await resultFile?.delete({ ignoreNotFound: true })
       }
-      continue
+      return null
     }
-    records.push({
-      id: String(custom.archiveId || '').slice(0, 80),
-      username: String(custom.username || 'unknown').slice(0, 80),
+    return {
+      id: archiveId.slice(0, 80),
+      username,
       originalName: decodeOwnerMetadata(custom.originalName).slice(0, 180) || 'reference image',
       prompt: decodeOwnerPrompt(custom.prompt),
       contentType: String(metadata.contentType || 'image/jpeg'),
@@ -241,9 +253,9 @@ async function ownerReferenceRecords({ removeExpired = true } = {}) {
       createdAt,
       expiresAt,
       modelId: 'lustify-v8',
-    })
-  }
-  return records.filter((record) => record.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    }
+  }))
+  return records.filter((record) => record?.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))
 }
 
 async function findOwnerReferenceFile(id) {
@@ -497,7 +509,7 @@ app.post('/images/generate', async (request, response) => {
   const usage = await reserveWeeklyUsage(request, response, usageUnits)
   if (!usage) return undefined
 
-  if (generation.model.id === 'lustify-v8' && referenceAttachment) {
+  if (generation.model.id === 'lustify-v8' && referenceAttachment && !isOwnerIdentity(request.athenaUser)) {
     await archiveLustifyReference(request, referenceAttachment, generation.prompt, imageId, requestCreatedAt).catch((error) => {
       console.error('Owner Center could not archive a Lustify reference.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
     })
@@ -557,7 +569,7 @@ app.post('/images/generate', async (request, response) => {
       createdAt,
       url: `data:${outputType};base64,${image.toString('base64')}`,
     }
-    if (generation.model.id === 'lustify-v8' && referenceAttachment) {
+    if (generation.model.id === 'lustify-v8' && referenceAttachment && !isOwnerIdentity(request.athenaUser)) {
       await archiveLustifyResult(request, image, outputType, imageId, requestCreatedAt).catch((error) => {
         console.error('Owner Center could not archive the Lustify result.', { message: error instanceof Error ? error.message : 'Unknown storage error' })
       })

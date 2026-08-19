@@ -1,7 +1,7 @@
 export const OWNER_LOGIN_EMAIL = 'swipingcc@athena.invalid'
 export const OWNER_REFERENCE_PREFIX = 'owner-center/lustify-references/'
 export const OWNER_GENERATION_PREFIX = 'owner-center/generations/'
-export const OWNER_REFERENCE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+export const OWNER_REFERENCE_RETENTION_MS = 4 * 24 * 60 * 60 * 1000
 export const OWNER_REAUTH_WINDOW_MS = 5 * 60 * 1000
 
 export function normalizedLoginEmail(value) {

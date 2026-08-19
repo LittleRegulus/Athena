@@ -8,6 +8,7 @@ import {
   ownerGenerationObjectName,
   ownerReferenceObjectName,
   ownerResultObjectName,
+  OWNER_REFERENCE_RETENTION_MS,
 } from './ownerCenter.js'
 
 test('owner access accepts only the exact owner Firebase identity', () => {
@@ -22,6 +23,10 @@ test('owner image access requires recent authentication', () => {
   assert.equal(hasRecentOwnerAuthentication({ auth_time: now / 1000 - 60 }, now), true)
   assert.equal(hasRecentOwnerAuthentication({ auth_time: now / 1000 - 360 }, now), false)
   assert.equal(hasRecentOwnerAuthentication({}, now), false)
+})
+
+test('owner archive retention is four days', () => {
+  assert.equal(OWNER_REFERENCE_RETENTION_MS, 4 * 24 * 60 * 60 * 1000)
 })
 
 test('owner archive paths stay in private fixed prefixes', () => {

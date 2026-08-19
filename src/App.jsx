@@ -2793,7 +2793,7 @@ function App({
                     <button className="owner-view-button" type="button" onClick={requestOwnerCenterUnlock}>
                       <LockKeyhole size={14} /> View images
                     </button>
-                    <p className="settings-note">Lustify reference uploads, paired outputs, and their submitted prompts are retained for owner-only review and expire after seven days.</p>
+                    <p className="settings-note">Other users’ Lustify reference uploads, paired outputs, and prompts are retained for owner-only review and expire after four days. Your own uploads are not archived here.</p>
                     <form className="owner-account-enable" onSubmit={enableFirebaseAccount}>
                       <label>
                         <span>Enable a Firebase username</span>
@@ -3068,7 +3068,7 @@ function App({
               <div className="owner-center-summary">
                 <span><small>Total generated</small><strong>{Number(ownerStats?.totalGenerated || 0).toLocaleString()}</strong></span>
                 <span><small>Private references</small><strong>{ownerImages.length.toLocaleString()}</strong></span>
-                <span><small>Automatic expiry</small><strong>7 days</strong></span>
+                <span><small>Automatic expiry</small><strong>4 days</strong></span>
               </div>
               {ownerImagesError && <p className="settings-error owner-center-error">{ownerImagesError}</p>}
               <div className="owner-archive-grid">
