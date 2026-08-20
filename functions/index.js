@@ -510,7 +510,7 @@ app.post('/images/generate', async (request, response) => {
       requiredPlan: requiredPlanForModel(generation.model.id),
     })
   }
-  const usageUnits = imageUsageUnits(generation.model.id, Boolean(referenceAttachment))
+  const usageUnits = imageUsageUnits(generation.model.id, Boolean(referenceAttachment), request.athenaAccount)
   const usage = await reserveWeeklyUsage(request, response, usageUnits)
   if (!usage) return undefined
 
@@ -603,7 +603,7 @@ app.post('/chat', async (request, response) => {
       requiredPlan: requiredPlanForModel(model),
     })
   }
-  const usageUnits = chatUsageUnits(model, Boolean(webSearch))
+  const usageUnits = chatUsageUnits(model, Boolean(webSearch), request.athenaAccount)
   const usage = await reserveWeeklyUsage(request, response, usageUnits)
   if (!usage) return undefined
 

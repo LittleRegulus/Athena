@@ -9,16 +9,18 @@ import {
   visibleModelsForAccount,
 } from './accessControl.js'
 
-test('owner and admin keep every model and unlimited usage', () => {
+test('owner is unlimited while admins keep every model with a weekly limit', () => {
   const owner = accountFromToken({ uid: '1', email: 'swipingcc@athena.invalid' })
   const admin = accountFromToken({ uid: '2', email: 'glizzyuli@athena.invalid' })
   const adminOnly = accountFromToken({ uid: '5', email: 'daboieric@athena.invalid' })
   assert.equal(owner.unlimited, true)
-  assert.equal(admin.unlimited, true)
+  assert.equal(admin.unlimited, false)
+  assert.equal(admin.tier, 'admin')
   assert.equal(adminOnly.role, 'Admin')
-  assert.equal(adminOnly.unlimited, true)
+  assert.equal(adminOnly.unlimited, false)
   assert.equal(adminOnly.canViewVeniceBalance, false)
   assert.equal(admin.canViewVeniceBalance, false)
+  assert.equal(normalizedUsageState(null, admin).limit, 100)
   assert.equal(canUseModel(owner, 'lustify-v8'), true)
   assert.equal(canUseModel(admin, 'qwen-3-6-plus'), true)
 })
@@ -48,6 +50,7 @@ test('Lustify is hidden entirely from non-privileged model lists', () => {
 
 test('weekly usage resets after seven days and model costs are weighted', () => {
   const free = accountFromToken({ uid: '3', email: 'free@athena.invalid', athenaAccess: true })
+  const admin = accountFromToken({ uid: '6', email: 'daboieric@athena.invalid' })
   const now = Date.UTC(2026, 7, 17)
   const usage = normalizedUsageState({ plan: 'free', used: 10, resetAt: new Date(now - 1).toISOString() }, free, now)
   assert.equal(usage.used, 0)
@@ -55,4 +58,7 @@ test('weekly usage resets after seven days and model costs are weighted', () => 
   assert.equal(usage.percentage, 100)
   assert.equal(chatUsageUnits('qwen3-coder-480b-a35b-instruct-turbo'), 2)
   assert.equal(imageUsageUnits('grok-imagine-image-quality', true), 10)
+  assert.equal(chatUsageUnits('qwen-3-6-plus', false, free), 3)
+  assert.equal(chatUsageUnits('qwen-3-6-plus', false, admin), 6)
+  assert.equal(imageUsageUnits('lustify-v8', true, admin), 7.5)
 })

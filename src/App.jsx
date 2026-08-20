@@ -2292,7 +2292,7 @@ function App({
           <small>{deletedConversations.length}</small>
         </button>
 
-        {accountTier !== 'privileged' && (
+        {accountTier !== 'privileged' && accountTier !== 'admin' && (
           <button className="upgrade-sidebar-button" onClick={() => showUpgrade('pro')}>
             <Sparkles size={16} />
             <span>
@@ -2827,7 +2827,7 @@ function App({
                     <span className={`plan-tier-badge plan-tier-badge--${accountTier}`}>{accountPlanLabel}</span>
                   </div>
                   {accountUsage?.unlimited ? (
-                    <div className="plan-usage-unlimited"><Sparkles size={16} /><span><strong>Unlimited access</strong><small>Owner and Admin accounts are not charged against weekly limits.</small></span></div>
+                    <div className="plan-usage-unlimited"><Sparkles size={16} /><span><strong>Unlimited access</strong><small>Only the Owner account is exempt from weekly usage limits.</small></span></div>
                   ) : (
                     <>
                       <div className="plan-usage-copy">

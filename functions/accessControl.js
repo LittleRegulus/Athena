@@ -10,6 +10,7 @@ export const PLAN_DEFINITIONS = Object.freeze({
   pro: Object.freeze({ id: 'pro', label: 'Athena Pro', weeklyLimit: 75 }),
   enterprise: Object.freeze({ id: 'enterprise', label: 'Athena Enterprise', weeklyLimit: 500 }),
   privileged: Object.freeze({ id: 'privileged', label: 'Athena Unlimited', weeklyLimit: null }),
+  admin: Object.freeze({ id: 'admin', label: 'Athena Admin', weeklyLimit: 100 }),
 })
 
 export const FREE_MODEL_IDS = new Set([
@@ -71,11 +72,11 @@ export function accountFromToken(decoded) {
       username: usernameFromEmail(email),
       role: email === 'glizzyuli@athena.invalid' ? 'Admin / Co-Developer' : 'Admin',
       roleTone: 'admin',
-      tier: 'privileged',
+      tier: 'admin',
       isOwner: false,
       isAdmin: true,
       canViewVeniceBalance: false,
-      unlimited: true,
+      unlimited: false,
     }
   }
   if (decoded?.athenaAccess !== true && !INITIAL_FREE_EMAILS.has(email)) return null
@@ -97,7 +98,7 @@ export function accountFromToken(decoded) {
 }
 
 export function modelIdsForAccount(account) {
-  if (account?.tier === 'privileged') return PRIVILEGED_MODEL_IDS
+  if (account?.tier === 'privileged' || account?.tier === 'admin') return PRIVILEGED_MODEL_IDS
   if (account?.tier === 'enterprise') return ENTERPRISE_MODEL_IDS
   if (account?.tier === 'pro') return PRO_MODEL_IDS
   return FREE_MODEL_IDS
@@ -116,7 +117,7 @@ export function requiredPlanForModel(modelId) {
 
 export function visibleModelsForAccount(account, models) {
   return models
-    .filter((model) => model.id !== 'lustify-v8' || account?.tier === 'privileged')
+    .filter((model) => model.id !== 'lustify-v8' || account?.tier === 'privileged' || account?.tier === 'admin')
     .map((model) => ({
       ...model,
       locked: !canUseModel(account, model.id),
@@ -124,12 +125,15 @@ export function visibleModelsForAccount(account, models) {
     }))
 }
 
-export function chatUsageUnits(modelId, webSearch = false) {
-  const base = modelId === 'qwen-3-6-plus' ? 3 : modelId === 'qwen3-coder-480b-a35b-instruct-turbo' ? 2 : 1
+export function chatUsageUnits(modelId, webSearch = false, account = null) {
+  const base = account?.tier === 'admin' && modelId === 'qwen-3-6-plus'
+    ? 6
+    : modelId === 'qwen-3-6-plus' ? 3 : modelId === 'qwen3-coder-480b-a35b-instruct-turbo' ? 2 : 1
   return base + (webSearch ? 1 : 0)
 }
 
-export function imageUsageUnits(modelId, hasReference = false) {
+export function imageUsageUnits(modelId, hasReference = false, account = null) {
+  if (account?.tier === 'admin' && modelId === 'lustify-v8') return 7.5
   const base = modelId === 'grok-imagine-image-quality'
     ? 8
     : modelId === 'grok-imagine-image'
