@@ -2292,6 +2292,17 @@ function App({
           <small>{deletedConversations.length}</small>
         </button>
 
+        {accountTier !== 'privileged' && (
+          <button className="upgrade-sidebar-button" onClick={() => showUpgrade('pro')}>
+            <Sparkles size={16} />
+            <span>
+              <strong>Upgrade Plan</strong>
+              <small>Unlock premium models</small>
+            </span>
+            <ChevronRight size={14} />
+          </button>
+        )}
+
         <button className="settings-button" onClick={openSettings}>
           <SettingsIcon size={16} />
           <span>

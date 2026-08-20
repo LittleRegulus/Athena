@@ -132,6 +132,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .trash-button small { min-width: 20px; margin-left: auto; padding: 2px 5px; border-radius: 10px; color: #6f7680; background: rgba(255,255,255,.05); text-align: center; font-size: 8px; }
 
 .settings-button { width: 100%; display: flex; align-items: center; gap: 9px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; text-align: left; background: rgba(255,255,255,.018); cursor: pointer; }
+.upgrade-sidebar-button { width: 100%; display: flex; align-items: center; gap: 9px; margin-top: 10px; padding: 10px; border: 1px solid rgba(154,125,224,.3); border-radius: 8px; color: #c9b7f1; text-align: left; background: linear-gradient(110deg, rgba(111,78,181,.13), rgba(255,255,255,.018)); cursor: pointer; }
+.upgrade-sidebar-button:hover { border-color: rgba(214,179,100,.45); color: #efd48c; background: rgba(214,179,100,.06); }
+.upgrade-sidebar-button > svg:first-child { color: #d6b364; }
+.upgrade-sidebar-button > svg:last-child { margin-left: auto; color: #80719e; }
+.upgrade-sidebar-button > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.upgrade-sidebar-button strong { color: inherit; font-size: 11px; font-weight: 600; }
+.upgrade-sidebar-button small { overflow: hidden; color: #817796; font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
 .settings-button:hover { border-color: var(--line-bright); background: rgba(214,179,100,.04); }
 .settings-button > svg:first-child { color: var(--gold); }
 .settings-button > svg:last-child { margin-left: auto; color: #636a74; transform: rotate(-90deg); }
