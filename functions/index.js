@@ -42,7 +42,8 @@ initializeApp()
 
 const veniceApiKey = defineSecret('VENICE_API_KEY')
 const firebaseStorageBucket = 'athena-3dd48.firebasestorage.app'
-const maxOutputTokens = 8192
+// Leave enough headroom for complete source files while staying within provider context limits.
+const maxOutputTokens = 16384
 const maxAttachmentBytes = 8 * 1024 * 1024
 const maxAttachmentContextBytes = 20 * 1024 * 1024
 const maxAttachmentsPerRequest = 8

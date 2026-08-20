@@ -26,8 +26,8 @@ const app = express()
 const port = Number(process.env.PORT || 8787)
 const apiKey = process.env.VENICE_API_KEY?.trim()
 const maxOutputTokens = Math.min(
-  Math.max(Number(process.env.ATHENA_MAX_OUTPUT_TOKENS || 4096), 256),
-  8192,
+  Math.max(Number(process.env.ATHENA_MAX_OUTPUT_TOKENS || 16384), 256),
+  32768,
 )
 const maxAttachmentBytes = 25 * 1024 * 1024
 const maxAttachmentsPerRequest = 8
