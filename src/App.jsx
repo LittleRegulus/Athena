@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { apiFetch, apiUrl, usesRemoteApi } from './api.js'
+import { getEasterEggResponse } from './easterEggs.js'
 import { extractProjectFiles, makeArchiveName } from './projectFiles.js'
 import { exportSecureStorage, flushSecureStorage, secureStorage } from './secureStorage.js'
 import athenaHorizontal from '../AthenaHorizontal.png'
@@ -1932,13 +1933,14 @@ function App({
     const typedContent = text.trim()
     if (isStreaming || attachmentsUploading) return
     const conversation = ensureConversation()
+    const easterEggResponse = getEasterEggResponse(typedContent)
     const requestedModel = models.find((model) => model.id === conversation.model)
-    if (requestedModel && isModelLocked(requestedModel)) {
+    if (!easterEggResponse && requestedModel && isModelLocked(requestedModel)) {
       showUpgrade(requestedModel.requiredPlan)
       return
     }
     const selectedModel = requestedModel ?? accessibleFallbackModel ?? models[0]
-    if (selectedModel?.type === 'image') {
+    if (!easterEggResponse && selectedModel?.type === 'image') {
       if (!typedContent) return
       if (selectedModel.adult && !adultImageAcknowledged) {
         setAdultConfirmModel(selectedModel)
@@ -1978,7 +1980,13 @@ function App({
           attachments: messageAttachments,
         }
       : { id: crypto.randomUUID(), role: 'user', content, parentId, attachments: messageAttachments }
-    const assistantMessage = { id: crypto.randomUUID(), role: 'assistant', content: '', parentId: userMessage.id }
+    const assistantMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: easterEggResponse ?? '',
+      parentId: userMessage.id,
+      ...(easterEggResponse ? { variant: 'black-file' } : {}),
+    }
     const requestMessages = [...precedingMessages, userMessage]
     const requestAttachments = requestMessages.flatMap((message) => message.attachments ?? [])
     const requestImageCount = requestAttachments.filter((attachment) => attachment.kind === 'image').length
@@ -2002,7 +2010,7 @@ function App({
     if (editIndex < 0) setPendingAttachments([])
     cancelEditingMessage()
     setError('')
-    setIsStreaming(true)
+    setIsStreaming(!easterEggResponse)
     updateConversation(conversation.id, (current) => ({
       ...current,
       model: requestModel,
@@ -2016,6 +2024,8 @@ function App({
       },
       messages: [...current.messages, userMessage, assistantMessage],
     }))
+
+    if (easterEggResponse) return
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -2440,7 +2450,7 @@ function App({
                   : null
 
                 return (
-                  <article className={`message message--${message.role}`} key={message.id}>
+                  <article className={`message message--${message.role}${message.variant === 'black-file' ? ' message--black-file' : ''}`} key={message.id}>
                   <div className="message-identity">
                     {message.role === 'assistant' ? (
                       <div className="mini-sigil"><img src={athenaLogo} alt="" /></div>
@@ -2452,7 +2462,9 @@ function App({
                   </div>
                   <div className="message-content">
                     <div className="message-label">{message.role === 'assistant'
-                      ? message.generatedImage?.modelLabel || 'Athena'
+                      ? message.variant === 'black-file'
+                        ? 'Athena // Black File'
+                        : message.generatedImage?.modelLabel || 'Athena'
                       : preferences.name || 'You'}</div>
                     {message.role === 'assistant' ? (
                       message.generatedImage ? (
