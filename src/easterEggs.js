@@ -1,5 +1,8 @@
 export const EPSTEIN_EASTER_EGG_TRIGGER = 'is jeffrey epstein still alive?'
 
+const EPSTEIN_TRIGGER_WORDS = ['is', 'jeffrey', 'epstein', 'still', 'alive']
+const EPSTEIN_TRIGGER_TYPO_LIMITS = [1, 2, 2, 1, 1]
+
 export const EPSTEIN_EASTER_EGG_RESPONSE = `> **⚠ ATHENA // BLACK-FILE EASTER EGG**
 >
 > **Fictional satire:** Jeffrey Epstein died in federal custody in 2019. Everything below is an invented conspiracy story—not a factual claim.
@@ -38,9 +41,41 @@ He smiles, turns back to the screens, and changes the subject.
 
 > **ATHENA VERDICT:** Magnificent nonsense. Zero proof. Eleven out of ten corkboard strings. 🧵`
 
+function editDistance(left, right) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex]
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + substitutionCost,
+      )
+    }
+    previous.splice(0, previous.length, ...current)
+  }
+
+  return previous[right.length]
+}
+
+function isEpsteinEasterEggTrigger(input) {
+  if (typeof input !== 'string') return false
+  const words = input
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^a-z\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+
+  if (words.length !== EPSTEIN_TRIGGER_WORDS.length) return false
+  return words.every((word, index) => (
+    editDistance(word, EPSTEIN_TRIGGER_WORDS[index]) <= EPSTEIN_TRIGGER_TYPO_LIMITS[index]
+  ))
+}
+
 export function getEasterEggResponse(input) {
-  if (typeof input !== 'string') return null
-  return input.trim().toLocaleLowerCase('en-US') === EPSTEIN_EASTER_EGG_TRIGGER
-    ? EPSTEIN_EASTER_EGG_RESPONSE
-    : null
+  return isEpsteinEasterEggTrigger(input) ? EPSTEIN_EASTER_EGG_RESPONSE : null
 }

@@ -242,7 +242,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .message-label { margin-bottom: 8px; color: #737b86; font: 500 9px/1 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
 .message--assistant .message-label { color: #a58b50; }
 .message--black-file { position: relative; margin: 16px 0; padding: 25px 20px; border: 1px solid rgba(209,56,63,.25); border-radius: 12px; background: radial-gradient(circle at 12% 0%, rgba(209,56,63,.09), transparent 36%), linear-gradient(135deg, rgba(18,12,15,.96), rgba(9,11,15,.96)); box-shadow: inset 3px 0 0 rgba(209,56,63,.55), 0 18px 55px rgba(0,0,0,.2); }
-.message--black-file::after { content: 'DECLASSIFIED // FICTION'; position: absolute; top: 12px; right: 14px; color: rgba(231,86,91,.52); font: 600 8px/1 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; letter-spacing: .12em; }
+.message--black-file::after { content: 'DECLASSIFIED INFO // FICTION'; position: absolute; top: 12px; right: 14px; color: rgba(231,86,91,.52); font: 600 8px/1 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; letter-spacing: .12em; }
 .message--black-file .message-label { color: #e7565b; }
 .message--black-file .message-content h1 { color: #f2d6c8; text-shadow: 0 0 24px rgba(209,56,63,.2); }
 .message--black-file .message-content blockquote { border-left-color: #d1383f; color: #b9a9a9; }
