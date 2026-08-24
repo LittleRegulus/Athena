@@ -4,8 +4,6 @@ Athena is an original, private-by-design AI research interface. It is not a copy
 
 ![Athena home screen](./athena-home.png)
 
-![Athena settings and usage](./athena-settings.png)
-
 The app provides:
 
 - Streamed LLM responses through the Venice AI API
