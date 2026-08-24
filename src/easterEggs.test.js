@@ -24,7 +24,7 @@ test('does not activate for near matches or unrelated prompts', () => {
   assert.equal(getEasterEggResponse(null), null)
 })
 
-test('keeps the fictional framing in the easter-egg response', () => {
-  assert.match(EPSTEIN_EASTER_EGG_RESPONSE, /fictional satire/i)
-  assert.match(EPSTEIN_EASTER_EGG_RESPONSE, /not a factual claim/i)
+test('keeps the speculative framing in the easter-egg response', () => {
+  assert.match(EPSTEIN_EASTER_EGG_RESPONSE, /deviates from verified public records/i)
+  assert.match(EPSTEIN_EASTER_EGG_RESPONSE, /speculative synthesis/i)
 })
