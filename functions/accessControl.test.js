@@ -28,6 +28,7 @@ test('owner is unlimited while admins keep every model with a weekly limit', () 
 test('unapproved Firebase identities are rejected', () => {
   assert.equal(accountFromToken({ uid: '3', email: 'stranger@athena.invalid' }), null)
   assert.equal(accountFromToken({ uid: '4', email: 'bsunner04@athena.invalid' }).tier, 'free')
+  assert.equal(accountFromToken({ uid: '6', email: '1kblends@athena.invalid' }).tier, 'free')
 })
 
 test('free, pro, and enterprise accounts receive exact model tiers', () => {
